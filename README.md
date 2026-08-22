@@ -59,9 +59,17 @@ Be honest about what this protects:
 - **Caveats**:
   - Files dropped into the mount point while the vault is locked are moved, **unencrypted**, to `~/.local/share/omavault/recovered/` on the next unlock. The panel then offers to move them back into the vault or delete them; until you act, they sit in plaintext
   - The passphrase and recovery key live in the panel's memory (QML strings cannot be securely zeroized) while the panel process runs
-  - Unlocking with the recovery key passes it to gocryptfs as a command-line argument (its only supported interface), so the key is briefly visible in `/proc/<pid>/cmdline` to processes running as your user, the same exposure class the threat model already excludes
 
 Forgotten passphrase + lost recovery key = unrecoverable data, by design.
+
+### Verifying the prebuilt helper
+
+The release workflow pins its actions to commit SHAs and publishes a SLSA build provenance attestation alongside the binary. `setup-helper.sh` checks the published checksum before installing; for independent verification of the downloaded file:
+
+```sh
+gh attestation verify ~/.config/omarchy/plugins/skvggor.omavault/omavault-helper \
+  -R skvggor/omavault-plugin
+```
 
 ## Uninstall
 

@@ -26,13 +26,21 @@ case \"$1\" in
     echo '    {MASTER_KEY}'
     ;;
   *)
-    if [ \"${{2#-masterkey=}}\" != \"$2\" ]; then
-      read _ || true
-      if [ \"${{2#-masterkey=}}\" = \"{MASTER_KEY}\" ]; then
-        exit 0
+    if [ \"$2\" = \"-masterkey=stdin\" ]; then
+      read master_key || true
+      if [ \"$master_key\" != \"{MASTER_KEY}\" ]; then
+        echo 'Could not parse master key: encoding/hex: invalid byte' >&2
+        exit 14
       fi
-      echo 'Could not parse master key: encoding/hex: invalid byte' >&2
-      exit 14
+      if [ \"$1\" = \"-passwd\" ]; then
+        read new_passphrase
+        read confirmation
+        if [ \"$new_passphrase\" != \"$confirmation\" ]; then
+          echo 'Password dissimilar.' >&2
+          exit 1
+        fi
+      fi
+      exit 0
     fi
     read passphrase
     if [ \"$passphrase\" != \"{ACCEPTED_PASSPHRASE}\" ]; then
