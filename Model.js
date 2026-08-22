@@ -87,6 +87,15 @@ function parseActionOutput(raw) {
   return parsed
 }
 
+function parseHelperVersion(raw) {
+  try {
+    var parsed = JSON.parse(String(raw || ""))
+    return typeof parsed.version === "string" ? parsed.version : ""
+  } catch (error) {
+    return ""
+  }
+}
+
 function passphraseProblem(passphrase, confirmation) {
   var value = String(passphrase || "")
   if (value.length < MIN_PASSPHRASE_LENGTH)
@@ -178,6 +187,7 @@ if (typeof module !== "undefined") {
     defaultStatus: defaultStatus,
     parseStatus: parseStatus,
     parseActionOutput: parseActionOutput,
+    parseHelperVersion: parseHelperVersion,
     friendlyError: friendlyError,
     passphraseProblem: passphraseProblem,
     fileExtension: fileExtension,

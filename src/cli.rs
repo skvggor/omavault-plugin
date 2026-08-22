@@ -15,6 +15,7 @@ Options:
   --lazy             Lazy unmount when locking
   --recovery-key     Unlock with the recovery key instead of the passphrase
   -h, --help         Show this help
+  -V, --version      Print the helper version as JSON
 
 The vault root is $OMAVAULT_ROOT or ~/.local/share/omavault.";
 
@@ -31,6 +32,7 @@ pub enum Command {
     Restore,
     Discard,
     Help,
+    Version,
 }
 
 pub fn parse(arguments: &[String]) -> Result<Command, String> {
@@ -43,6 +45,7 @@ pub fn parse(arguments: &[String]) -> Result<Command, String> {
         let argument = arguments[index].as_str();
         match argument {
             "-h" | "--help" => return Ok(Command::Help),
+            "-V" | "--version" => return Ok(Command::Version),
             "--limit" => {
                 index += 1;
                 let value = arguments

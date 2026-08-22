@@ -27,6 +27,17 @@ Or the native Omarchy flow — the panel then offers an "Install helper" button 
 omarchy plugin add https://github.com/skvggor/omavault-plugin.git --enable
 ```
 
+## Update
+
+The plugin files and the helper binary update separately — the binary is downloaded from the releases, not tracked in git:
+
+```sh
+omarchy plugin update skvggor.omavault
+bash ~/.config/omarchy/plugins/skvggor.omavault/setup-helper.sh
+```
+
+If you skip the second command, the panel detects the stale helper version and shows the "Install helper" button again; clicking it downloads the matching binary (v0.1.2 or newer).
+
 ## Usage
 
 - Click the shield icon to open the panel
