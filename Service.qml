@@ -32,6 +32,7 @@ Item {
   property string _recoveryKeyInUse: ""
   property string _statusOutput: ""
   property string _statusError: ""
+  property string _helperProbeOutput: ""
 
   readonly property int recentLimit: intSetting("recentLimit", 10, 5, 50)
   readonly property int autoLockMinutes: intSetting("autoLockMinutes", 10, 1, 480)
@@ -75,6 +76,17 @@ Item {
     _statusOutput = ""
     statusProcess.command = [helperPath, "status", "--limit", String(recentLimit)]
     statusProcess.running = true
+  }
+
+  // Spawn failures of the helper itself are not reliably reported by every
+  // Quickshell build, so existence is probed through /bin/sh instead.
+  function probeHelper() {
+    if (helperProbe.running || helperPath === "") return
+    _helperProbeOutput = ""
+    helperProbe.command = [
+      "sh", "-c", "test -x \"$1\" && echo yes || echo no", "omavault-helper-probe", helperPath
+    ]
+    helperProbe.running = true
   }
 
   function applyStatus(parsed) {
@@ -273,7 +285,7 @@ Item {
     repeat: true
     running: true
     triggeredOnStart: true
-    onTriggered: root.refresh()
+    onTriggered: root.probeHelper()
   }
 
   Timer {
@@ -325,9 +337,17 @@ Item {
       if (exitCode === 0) root.applyStatus(Model.parseStatus(stdout))
       else root.lastError = root.elideStatus(stderr || stdout || "Could not read vault status")
     }
-    onErrorOccurred: function(error) {
-      if (error !== 0) return
-      root.helperMissing = true
+  }
+
+  Process {
+    id: helperProbe
+    running: false
+    command: []
+    stdout: StdioCollector { id: helperProbeStdout; waitForEnd: true }
+    onExited: function() {
+      var answer = String(helperProbeStdout.text || root._helperProbeOutput || "").trim()
+      root.helperMissing = answer !== "yes"
+      if (!root.helperMissing) root.refresh()
     }
   }
 
