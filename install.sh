@@ -7,14 +7,19 @@ PLUGIN_ID="skvggor.omavault"
 PLUGIN_DIR="$HOME/.config/omarchy/plugins/$PLUGIN_ID"
 RELEASES_URL="https://github.com/skvggor/omavault-plugin/releases/download"
 HELPER_ASSET="omavault-helper-x86_64-linux-musl"
+asset_dir=""
 
 fail() {
   echo "error: $*" >&2
   exit 1
 }
 
+cleanup() {
+  [[ -n $asset_dir ]] && rm -rf "$asset_dir"
+}
+
 download_helper() {
-  local version asset_dir
+  local version
 
   command -v jq >/dev/null 2>&1 || fail "jq is required to read the plugin version (omarchy pkg add jq)"
   command -v curl >/dev/null 2>&1 || fail "curl is required to download the prebuilt helper (omarchy pkg add curl)"
@@ -25,7 +30,7 @@ download_helper() {
 
   version="$(jq -r .version manifest.json)"
   asset_dir="$(mktemp -d)"
-  trap 'rm -rf "$asset_dir"' EXIT
+  trap cleanup EXIT
 
   echo "Rust toolchain not found; downloading prebuilt omavault-helper v$version..."
 
