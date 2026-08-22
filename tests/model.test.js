@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict')
 const { test } = require('node:test')
 
-const Model = require('../plugin/Model.js')
+const Model = require('../Model.js')
 
 test('parseStatus returns defaults for empty input', () => {
   const parsed = Model.parseStatus('')

@@ -9,9 +9,10 @@ A secret vault for your files in the Omarchy bar, backed by [gocryptfs](https://
 
 ## Dependencies
 
-- `gocryptfs` and `fuse3`: install manually (`sudo pacman -S --needed gocryptfs fuse3`) or use the "Install gocryptfs" button in the panel (runs `omarchy-pkg-add` in a terminal, sudo prompted there, same mechanism as Omarchy's first-party service installers)
+- `gocryptfs` and `fuse3`: install manually (`omarchy pkg add gocryptfs fuse3`) or use the "Install gocryptfs" button in the panel (runs `omarchy-pkg-add` in a terminal, sudo prompted there, same mechanism as Omarchy's first-party service installers)
 - `util-linux` (the `script` tool, present on any normal Arch install), required at vault creation so gocryptfs prints the master key
-- Rust toolchain (to build the helper)
+
+No Rust toolchain needed for a normal install: `./install.sh` builds the helper if `cargo` is available, otherwise downloads the prebuilt binary matching this version from GitHub Releases and verifies its SHA-256 checksum. To build from source instead, run `omarchy pkg add rust`.
 
 ## Install
 
@@ -66,7 +67,7 @@ Do **not** remove `fuse3`: the rest of the system (gvfs, qemu, xdg-desktop-porta
 cargo test          # helper unit tests
 cargo llvm-cov      # coverage
 npm test            # Model.js tests
-qmllint -I /usr/share/omarchy/shell plugin/*.qml
+qmllint -I /usr/share/omarchy/shell *.qml
 tools/eject.sh      # factory-reset: unmounts, wipes vault data, reinstalls
                     # --remove-packages also uninstalls gocryptfs
 ```
@@ -74,3 +75,13 @@ tools/eject.sh      # factory-reset: unmounts, wipes vault data, reinstalls
 End-user documentation lives in [MANUAL.md](MANUAL.md).
 
 The helper binary (`omavault-helper`) is a thin Rust wrapper around gocryptfs; the QML layer only orchestrates it and never handles cryptography.
+
+## Release
+
+Bump `version` in `manifest.json` and `Cargo.toml` to the same value, then tag:
+
+```sh
+git tag v0.1.1 && git push origin v0.1.1
+```
+
+CI refuses the tag if versions disagree, builds a static musl helper, runs the tests, and publishes binary + SHA-256 as release assets.

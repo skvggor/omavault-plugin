@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify versions match tag
+        run: |
+          manifest_version="$(jq -r .version manifest.json)"
+          cargo_version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
+          tag_version="${GITHUB_REF_NAME#v}"
+          if [[ "$tag_version" != "$manifest_version" || "$tag_version" != "$cargo_version" ]]; then
+            echo "version mismatch: tag v$tag_version, manifest.json $manifest_version, Cargo.toml $cargo_version" >&2
+            exit 1
+          fi
+
+      - name: Set up Rust (musl target)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Test
+        run: cargo test
+
+      - name: Build static helper
+        run: cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Stage release assets
+        run: |
+          asset="omavault-helper-x86_64-linux-musl"
+          cd target/x86_64-unknown-linux-musl/release
+          cp omavault-helper "$asset"
+          sha256sum "$asset" > "$asset.sha256"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes \
+            target/x86_64-unknown-linux-musl/release/omavault-helper-x86_64-linux-musl \
+            target/x86_64-unknown-linux-musl/release/omavault-helper-x86_64-linux-musl.sha256
