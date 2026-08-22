@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "skvggor.omavault",
+  "name": "Omavault",
+  "version": "0.1.0",
+  "author": "skvggor",
+  "license": "MIT",
+  "description": "A secret vault for your files: unlock it from the bar, use it, and it locks itself again.",
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "Panel.qml" },
+  "barWidget": {
+    "displayName": "Omavault",
+    "description": "Unlock an encrypted vault, browse recent files, and auto-lock it after a delay.",
+    "category": "Files",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "autoLockMinutes": 10,
+      "recentLimit": 10
+    },
+    "schema": [
+      {
+        "key": "autoLockMinutes",
+        "type": "integer",
+        "label": "Auto-lock delay (minutes)",
+        "min": 1,
+        "max": 480,
+        "step": 1,
+        "defaultValue": 10
+      },
+      {
+        "key": "recentLimit",
+        "type": "integer",
+        "label": "Recent files to list",
+        "min": 5,
+        "max": 50,
+        "step": 5,
+        "defaultValue": 10
+      }
+    ]
+  }
+}
