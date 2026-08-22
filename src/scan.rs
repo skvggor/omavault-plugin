@@ -30,7 +30,11 @@ pub fn scan_recent(root: &Path, limit: usize) -> ScanSummary {
             .then_with(|| left.name.cmp(&right.name))
     });
     entries.truncate(limit.max(1));
-    ScanSummary { total_bytes, file_count, files: entries }
+    ScanSummary {
+        total_bytes,
+        file_count,
+        files: entries,
+    }
 }
 
 fn collect(
@@ -101,7 +105,12 @@ mod tests {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, bytes).unwrap();
         let modified = std::time::SystemTime::now() - std::time::Duration::from_secs(age_seconds);
-        fs::File::options().append(true).open(&path).unwrap().set_modified(modified).unwrap();
+        fs::File::options()
+            .append(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(modified)
+            .unwrap();
     }
 
     #[test]
@@ -115,7 +124,11 @@ mod tests {
         let summary = scan_recent(root, 10);
         assert_eq!(summary.file_count, 3);
         assert_eq!(summary.total_bytes, 7);
-        let names: Vec<&str> = summary.files.iter().map(|file| file.name.as_str()).collect();
+        let names: Vec<&str> = summary
+            .files
+            .iter()
+            .map(|file| file.name.as_str())
+            .collect();
         assert_eq!(names, vec!["b-newest.txt", "a-new.md", "z-old.txt"]);
         assert_eq!(summary.files[1].folder, "nested");
     }
@@ -155,7 +168,12 @@ mod tests {
         let root = directory.path();
         write_file(root, "kept.txt", b"1", 5);
         write_file(root, ".Trash-1000/files/deleted.txt", b"22", 4);
-        write_file(root, ".Trash-1000/info/deleted.txt.trashinfo", b"[Trash Info]", 3);
+        write_file(
+            root,
+            ".Trash-1000/info/deleted.txt.trashinfo",
+            b"[Trash Info]",
+            3,
+        );
         write_file(root, ".Trash/files/legacy.txt", b"333", 2);
 
         let summary = scan_recent(root, 10);

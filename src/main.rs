@@ -23,8 +23,8 @@ fn main() {
             std::process::exit(1);
         }
     };
-    let program = gocryptfs::find_in_path(GOCRYPTFS)
-        .unwrap_or_else(|| std::path::PathBuf::from(GOCRYPTFS));
+    let program =
+        gocryptfs::find_in_path(GOCRYPTFS).unwrap_or_else(|| std::path::PathBuf::from(GOCRYPTFS));
     let code = run(
         &arguments,
         &root,
@@ -74,9 +74,12 @@ pub fn dispatch(
     match command {
         Command::Status { limit } => status(layout, program, limit),
         Command::Init => init(layout, secrets.first().map(String::as_str), program),
-        Command::Unlock { recovery_key } => {
-            unlock(layout, secrets.first().map(String::as_str), program, recovery_key)
-        }
+        Command::Unlock { recovery_key } => unlock(
+            layout,
+            secrets.first().map(String::as_str),
+            program,
+            recovery_key,
+        ),
         Command::SetPassphrase => set_passphrase(layout, secrets, program),
         Command::Lock { lazy } => lock(layout, lazy),
         Command::Restore => restore(layout),
@@ -89,9 +92,15 @@ pub fn dispatch(
 // command expects them (e.g. recovery key first, then the new passphrase).
 fn read_secrets(command: &Command, input: &mut dyn BufRead) -> Result<Vec<String>, String> {
     match command {
-        Command::Init | Command::Unlock { .. } => {
-            Ok(vec![read_secret(input, "passphrase")?])
-        }
+        Command::Init => Ok(vec![read_secret(input, "passphrase")?]),
+        Command::Unlock { recovery_key } => Ok(vec![read_secret(
+            input,
+            if *recovery_key {
+                "recovery key"
+            } else {
+                "passphrase"
+            },
+        )?]),
         Command::SetPassphrase => Ok(vec![
             read_secret(input, "recovery key")?,
             read_secret(input, "passphrase")?,
@@ -136,7 +145,12 @@ fn status(layout: &Layout, program: &Path, limit: usize) -> Result<Value, String
     let (total_bytes, file_count, files, vault_holders) = if unlocked {
         let summary = scan::scan_recent(&layout.mount_dir(), limit);
         let vault_holders = holders::scan_holders(&layout.mount_dir());
-        (summary.total_bytes, summary.file_count, summary.files, vault_holders)
+        (
+            summary.total_bytes,
+            summary.file_count,
+            summary.files,
+            vault_holders,
+        )
     } else {
         (0, 0, Vec::new(), Vec::new())
     };
@@ -182,15 +196,14 @@ fn unlock(
     if gocryptfs::is_mounted(&layout.mount_dir())? {
         return Ok(json!({ "unlocked": true }));
     }
-    let secret = secret.ok_or_else(|| if recovery_key {
-        "recovery key is required".to_string()
-    } else {
-        "passphrase is required".to_string()
+    let secret = secret.ok_or_else(|| {
+        if recovery_key {
+            "recovery key is required".to_string()
+        } else {
+            "passphrase is required".to_string()
+        }
     })?;
-    let recovered = gocryptfs::recover_stale_files(
-        &layout.mount_dir(),
-        &layout.recovered_dir(),
-    )?;
+    let recovered = gocryptfs::recover_stale_files(&layout.mount_dir(), &layout.recovered_dir())?;
     if recovery_key {
         gocryptfs::unlock_with_recovery_key(
             program,
@@ -211,7 +224,8 @@ fn restore(layout: &Layout) -> Result<Value, String> {
     if !gocryptfs::is_mounted(&layout.mount_dir())? {
         return Err("vault is locked".to_string());
     }
-    let restored = gocryptfs::restore_recovered_files(&layout.recovered_dir(), &layout.mount_dir())?;
+    let restored =
+        gocryptfs::restore_recovered_files(&layout.recovered_dir(), &layout.mount_dir())?;
     Ok(json!({ "restored": restored }))
 }
 
@@ -278,7 +292,8 @@ mod tests {
     }
 
     fn execute(arguments: &[&str], root: &Path, program: &Path, input: &str) -> (i32, String) {
-        let owned_arguments: Vec<String> = arguments.iter().map(|value| value.to_string()).collect();
+        let owned_arguments: Vec<String> =
+            arguments.iter().map(|value| value.to_string()).collect();
         let mut output = Vec::new();
         let code = run(
             &owned_arguments,
@@ -316,7 +331,10 @@ mod tests {
         assert_eq!(code, 1);
         let parsed: Value = serde_json::from_str(&output).unwrap();
         assert_eq!(parsed["ok"], json!(false));
-        assert!(parsed["error"].as_str().unwrap().contains("unknown command"));
+        assert!(parsed["error"]
+            .as_str()
+            .unwrap()
+            .contains("unknown command"));
     }
 
     #[test]
@@ -329,14 +347,22 @@ mod tests {
         assert_eq!(parsed["ok"], json!(true));
         assert_eq!(parsed["initialized"], json!(false));
         assert_eq!(parsed["unlocked"], json!(false));
-        assert_eq!(parsed["vaultPath"], json!(layout.cipher_dir().to_string_lossy().to_string()));
+        assert_eq!(
+            parsed["vaultPath"],
+            json!(layout.cipher_dir().to_string_lossy().to_string())
+        );
     }
 
     #[test]
     fn run_inits_vault_with_passphrase_from_stdin() {
         let (directory, _) = vault_layout();
         let program = fake_gocryptfs(directory.path());
-        let (code, output) = execute(&["init"], directory.path(), &program, &format!("{}\n", ACCEPTED_PASSPHRASE));
+        let (code, output) = execute(
+            &["init"],
+            directory.path(),
+            &program,
+            &format!("{}\n", ACCEPTED_PASSPHRASE),
+        );
         assert_eq!(code, 0);
         let parsed: Value = serde_json::from_str(&output).unwrap();
         assert_eq!(parsed["recoveryKey"], json!(MASTER_KEY));
@@ -353,10 +379,35 @@ mod tests {
     }
 
     #[test]
+    fn run_names_the_missing_secret_after_the_unlock_mode() {
+        let (directory, _) = vault_layout();
+        let program = fake_gocryptfs(directory.path());
+        let (code, output) = execute(
+            &["unlock", "--recovery-key"],
+            directory.path(),
+            &program,
+            "\n",
+        );
+        assert_eq!(code, 1);
+        let parsed: Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["error"], json!("recovery key is empty"));
+
+        let (code, output) = execute(&["unlock"], directory.path(), &program, "\n");
+        assert_eq!(code, 1);
+        let parsed: Value = serde_json::from_str(&output).unwrap();
+        assert_eq!(parsed["error"], json!("passphrase is empty"));
+    }
+
+    #[test]
     fn run_unlocks_initialized_vault() {
         let (directory, _) = initialized_layout();
         let program = fake_gocryptfs(directory.path());
-        let (code, output) = execute(&["unlock"], directory.path(), &program, &format!("{}\n", ACCEPTED_PASSPHRASE));
+        let (code, output) = execute(
+            &["unlock"],
+            directory.path(),
+            &program,
+            &format!("{}\n", ACCEPTED_PASSPHRASE),
+        );
         assert_eq!(code, 0);
         let parsed: Value = serde_json::from_str(&output).unwrap();
         assert_eq!(parsed["unlocked"], json!(true));
@@ -374,7 +425,12 @@ mod tests {
     #[test]
     fn run_lock_with_lazy_flag_on_initialized_vault() {
         let (directory, _) = initialized_layout();
-        let (code, output) = execute(&["lock", "--lazy"], directory.path(), Path::new("gocryptfs"), "");
+        let (code, output) = execute(
+            &["lock", "--lazy"],
+            directory.path(),
+            Path::new("gocryptfs"),
+            "",
+        );
         assert_eq!(code, 0);
         let parsed: Value = serde_json::from_str(&output).unwrap();
         assert_eq!(parsed["unlocked"], json!(false));
@@ -397,7 +453,13 @@ mod tests {
     fn dispatch_init_creates_vault_and_returns_recovery_key() {
         let (directory, layout) = vault_layout();
         let program = fake_gocryptfs(directory.path());
-        let payload = dispatch(Command::Init, &layout, &[ACCEPTED_PASSPHRASE.to_string()], &program).unwrap();
+        let payload = dispatch(
+            Command::Init,
+            &layout,
+            &[ACCEPTED_PASSPHRASE.to_string()],
+            &program,
+        )
+        .unwrap();
         assert_eq!(payload["recoveryKey"], json!(MASTER_KEY));
         assert!(layout.is_initialized());
     }
@@ -406,8 +468,13 @@ mod tests {
     fn dispatch_init_rejects_existing_vault() {
         let (directory, layout) = initialized_layout();
         let program = fake_gocryptfs(directory.path());
-        let error =
-            dispatch(Command::Init, &layout, &[ACCEPTED_PASSPHRASE.to_string()], &program).unwrap_err();
+        let error = dispatch(
+            Command::Init,
+            &layout,
+            &[ACCEPTED_PASSPHRASE.to_string()],
+            &program,
+        )
+        .unwrap_err();
         assert_eq!(error, "vault already initialized");
     }
 
@@ -415,9 +482,7 @@ mod tests {
     fn dispatch_init_requires_passphrase() {
         let (directory, layout) = vault_layout();
         let program = fake_gocryptfs(directory.path());
-        let error = dispatch(Command::Init,
-        &layout,
-        &[], &program).unwrap_err();
+        let error = dispatch(Command::Init, &layout, &[], &program).unwrap_err();
         assert_eq!(error, "passphrase is required");
     }
 
@@ -433,23 +498,33 @@ mod tests {
     fn dispatch_init_surfaces_gocryptfs_failure() {
         let (directory, layout) = vault_layout();
         let program = fake_gocryptfs(directory.path());
-        let error =
-            dispatch(Command::Init, &layout, &["wrong passphrase value".to_string()], &program).unwrap_err();
-        assert!(error.contains("Password dissimilar"), "unexpected error: {}", error);
+        let error = dispatch(
+            Command::Init,
+            &layout,
+            &["wrong passphrase value".to_string()],
+            &program,
+        )
+        .unwrap_err();
+        assert!(
+            error.contains("Password dissimilar"),
+            "unexpected error: {}",
+            error
+        );
     }
 
     #[test]
     fn dispatch_unlock_rejects_uninitialized_vault() {
         let (directory, layout) = vault_layout();
         let program = fake_gocryptfs(directory.path());
-        let error =
-            dispatch(
-                Command::Unlock { recovery_key: false },
-                &layout,
-                &[ACCEPTED_PASSPHRASE.to_string()],
-                &program,
-            )
-            .unwrap_err();
+        let error = dispatch(
+            Command::Unlock {
+                recovery_key: false,
+            },
+            &layout,
+            &[ACCEPTED_PASSPHRASE.to_string()],
+            &program,
+        )
+        .unwrap_err();
         assert_eq!(error, "vault is not initialized");
     }
 
@@ -457,14 +532,15 @@ mod tests {
     fn dispatch_unlock_mounts_initialized_vault() {
         let (directory, layout) = initialized_layout();
         let program = fake_gocryptfs(directory.path());
-        let payload =
-            dispatch(
-                Command::Unlock { recovery_key: false },
-                &layout,
-                &[ACCEPTED_PASSPHRASE.to_string()],
-                &program,
-            )
-            .unwrap();
+        let payload = dispatch(
+            Command::Unlock {
+                recovery_key: false,
+            },
+            &layout,
+            &[ACCEPTED_PASSPHRASE.to_string()],
+            &program,
+        )
+        .unwrap();
         assert_eq!(payload["unlocked"], json!(true));
         assert!(layout.mount_dir().is_dir());
     }
@@ -539,7 +615,10 @@ mod tests {
         );
         assert_eq!(code, 1);
         let parsed: Value = serde_json::from_str(&output).unwrap();
-        assert_eq!(parsed["error"], json!("passphrase must be at least 8 characters"));
+        assert_eq!(
+            parsed["error"],
+            json!("passphrase must be at least 8 characters")
+        );
     }
 
     #[test]
@@ -565,7 +644,10 @@ mod tests {
         let error = dispatch(
             Command::SetPassphrase,
             &layout,
-            &["00000000-00000000-000000".to_string(), ACCEPTED_PASSPHRASE.to_string()],
+            &[
+                "00000000-00000000-000000".to_string(),
+                ACCEPTED_PASSPHRASE.to_string(),
+            ],
             &program,
         )
         .unwrap_err();
@@ -576,27 +658,33 @@ mod tests {
     #[test]
     fn dispatch_lock_rejects_uninitialized_vault() {
         let (_directory, layout) = vault_layout();
-        let error =
-            dispatch(Command::Lock { lazy: false }, &layout, &[], Path::new("gocryptfs"))
-                .unwrap_err();
+        let error = dispatch(
+            Command::Lock { lazy: false },
+            &layout,
+            &[],
+            Path::new("gocryptfs"),
+        )
+        .unwrap_err();
         assert_eq!(error, "vault is not initialized");
     }
 
     #[test]
     fn dispatch_lock_reports_already_locked_vault() {
         let (_directory, layout) = initialized_layout();
-        let payload =
-            dispatch(Command::Lock { lazy: false }, &layout, &[], Path::new("gocryptfs"))
-                .unwrap();
+        let payload = dispatch(
+            Command::Lock { lazy: false },
+            &layout,
+            &[],
+            Path::new("gocryptfs"),
+        )
+        .unwrap();
         assert_eq!(payload["unlocked"], json!(false));
     }
 
     #[test]
     fn dispatch_help_returns_empty_payload() {
         let (_directory, layout) = vault_layout();
-        let payload = dispatch(Command::Help,
-        &layout,
-        &[], Path::new("gocryptfs")).unwrap();
+        let payload = dispatch(Command::Help, &layout, &[], Path::new("gocryptfs")).unwrap();
         assert_eq!(payload, json!({}));
     }
 
@@ -606,13 +694,7 @@ mod tests {
         std::fs::create_dir_all(layout.recovered_dir()).unwrap();
         std::fs::write(layout.recovered_dir().join("dropped.txt"), b"stale").unwrap();
         let program = fake_gocryptfs(directory.path());
-        let payload = dispatch(
-            Command::Status { limit: 10 },
-            &layout,
-            &[],
-            &program,
-        )
-        .unwrap();
+        let payload = dispatch(Command::Status { limit: 10 }, &layout, &[], &program).unwrap();
         assert_eq!(payload["pendingRecovered"], json!(1));
     }
 
@@ -621,9 +703,7 @@ mod tests {
         let (_directory, layout) = initialized_layout();
         std::fs::create_dir_all(layout.recovered_dir()).unwrap();
         std::fs::write(layout.recovered_dir().join("dropped.txt"), b"stale").unwrap();
-        let error = dispatch(Command::Restore,
-        &layout,
-        &[], Path::new("gocryptfs")).unwrap_err();
+        let error = dispatch(Command::Restore, &layout, &[], Path::new("gocryptfs")).unwrap_err();
         assert_eq!(error, "vault is locked");
         assert!(layout.recovered_dir().join("dropped.txt").is_file());
     }
@@ -631,9 +711,7 @@ mod tests {
     #[test]
     fn dispatch_restore_rejects_uninitialized_vault() {
         let (_directory, layout) = vault_layout();
-        let error = dispatch(Command::Restore,
-        &layout,
-        &[], Path::new("gocryptfs")).unwrap_err();
+        let error = dispatch(Command::Restore, &layout, &[], Path::new("gocryptfs")).unwrap_err();
         assert_eq!(error, "vault is not initialized");
     }
 
@@ -643,9 +721,7 @@ mod tests {
         std::fs::create_dir_all(layout.recovered_dir()).unwrap();
         std::fs::write(layout.recovered_dir().join("a.txt"), b"one").unwrap();
         std::fs::create_dir(layout.recovered_dir().join("b-folder")).unwrap();
-        let payload = dispatch(Command::Discard,
-        &layout,
-        &[], Path::new("gocryptfs")).unwrap();
+        let payload = dispatch(Command::Discard, &layout, &[], Path::new("gocryptfs")).unwrap();
         assert_eq!(payload["discarded"], json!(2));
         assert!(!layout.recovered_dir().exists());
     }
@@ -653,9 +729,7 @@ mod tests {
     #[test]
     fn dispatch_discard_reports_zero_when_nothing_to_remove() {
         let (_directory, layout) = initialized_layout();
-        let payload = dispatch(Command::Discard,
-        &layout,
-        &[], Path::new("gocryptfs")).unwrap();
+        let payload = dispatch(Command::Discard, &layout, &[], Path::new("gocryptfs")).unwrap();
         assert_eq!(payload["discarded"], json!(0));
     }
 
@@ -675,11 +749,21 @@ mod tests {
             let root = directory.path();
             let layout = Layout::new(root);
 
-            let (code, output) = execute(&["init"], root, &program, &format!("{}\n", ACCEPTED_PASSPHRASE));
+            let (code, output) = execute(
+                &["init"],
+                root,
+                &program,
+                &format!("{}\n", ACCEPTED_PASSPHRASE),
+            );
             assert_eq!(code, 0, "init failed: {}", output);
             assert!(layout.is_initialized());
 
-            let (code, output) = execute(&["unlock"], root, &program, &format!("{}\n", ACCEPTED_PASSPHRASE));
+            let (code, output) = execute(
+                &["unlock"],
+                root,
+                &program,
+                &format!("{}\n", ACCEPTED_PASSPHRASE),
+            );
             assert_eq!(code, 0, "unlock failed: {}", output);
             assert!(gocryptfs::is_mounted(&layout.mount_dir()).unwrap());
 
@@ -719,8 +803,18 @@ mod tests {
             let root = directory.path();
             let layout = Layout::new(root);
 
-            execute(&["init"], root, &program, &format!("{}\n", ACCEPTED_PASSPHRASE));
-            execute(&["unlock"], root, &program, &format!("{}\n", ACCEPTED_PASSPHRASE));
+            execute(
+                &["init"],
+                root,
+                &program,
+                &format!("{}\n", ACCEPTED_PASSPHRASE),
+            );
+            execute(
+                &["unlock"],
+                root,
+                &program,
+                &format!("{}\n", ACCEPTED_PASSPHRASE),
+            );
             assert!(gocryptfs::is_mounted(&layout.mount_dir()).unwrap());
 
             let (code, output) = execute(&["lock"], root, &program, "");

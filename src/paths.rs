@@ -53,8 +53,14 @@ mod tests {
     fn layout_derives_cipher_and_mount_dirs() {
         let layout = Layout::new("/data/protected");
         assert_eq!(layout.cipher_dir(), PathBuf::from("/data/protected/vault"));
-        assert_eq!(layout.mount_dir(), PathBuf::from("/data/protected/Protected Files"));
-        assert_eq!(layout.recovered_dir(), PathBuf::from("/data/protected/recovered"));
+        assert_eq!(
+            layout.mount_dir(),
+            PathBuf::from("/data/protected/Protected Files")
+        );
+        assert_eq!(
+            layout.recovered_dir(),
+            PathBuf::from("/data/protected/recovered")
+        );
     }
 
     #[test]

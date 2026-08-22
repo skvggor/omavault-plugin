@@ -136,9 +136,14 @@ fn run_with_passphrase(
 fn describe_failure(output: &std::process::Output) -> String {
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    let combined = format!("{}{}", stdout.trim_end(), stderr.trim_end()).trim().to_string();
+    let combined = format!("{}{}", stdout.trim_end(), stderr.trim_end())
+        .trim()
+        .to_string();
     if combined.is_empty() {
-        format!("gocryptfs exited with status {}", output.status.code().unwrap_or(-1))
+        format!(
+            "gocryptfs exited with status {}",
+            output.status.code().unwrap_or(-1)
+        )
     } else {
         combined
     }
@@ -255,7 +260,10 @@ pub fn set_passphrase(
         Ok(())
     } else {
         let failure = describe_failure(&output);
-        Err(redact_secret(&redact_secret(&failure, master_key), new_passphrase))
+        Err(redact_secret(
+            &redact_secret(&failure, master_key),
+            new_passphrase,
+        ))
     }
 }
 
@@ -302,7 +310,13 @@ pub fn restore_recovered_files(recovered_dir: &Path, mount_dir: &Path) -> Result
     let entries: Vec<_> = match std::fs::read_dir(recovered_dir) {
         Ok(entries) => entries.flatten().collect(),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-        Err(error) => return Err(format!("failed to read {}: {}", recovered_dir.display(), error)),
+        Err(error) => {
+            return Err(format!(
+                "failed to read {}: {}",
+                recovered_dir.display(),
+                error
+            ))
+        }
     };
     if entries.is_empty() {
         return Ok(0);
@@ -324,7 +338,13 @@ pub fn discard_recovered_files(recovered_dir: &Path) -> Result<usize, String> {
     let entries: Vec<_> = match std::fs::read_dir(recovered_dir) {
         Ok(entries) => entries.flatten().collect(),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
-        Err(error) => return Err(format!("failed to read {}: {}", recovered_dir.display(), error)),
+        Err(error) => {
+            return Err(format!(
+                "failed to read {}: {}",
+                recovered_dir.display(),
+                error
+            ))
+        }
     };
     let mut discarded = 0;
     for entry in entries {
@@ -368,7 +388,11 @@ fn copy_recursively(source: &Path, destination: &Path) -> Result<(), String> {
         let target = std::fs::read_link(source)
             .map_err(|error| format!("failed to read symlink {}: {}", source.display(), error))?;
         std::os::unix::fs::symlink(&target, destination).map_err(|error| {
-            format!("failed to create symlink {}: {}", destination.display(), error)
+            format!(
+                "failed to create symlink {}: {}",
+                destination.display(),
+                error
+            )
         })?;
         return Ok(());
     }
@@ -407,14 +431,29 @@ pub fn unmount_candidates(mount_dir: &Path, lazy: bool) -> Vec<(String, Vec<Stri
     let mount_dir = mount_dir.to_string_lossy().to_string();
     if lazy {
         vec![
-            ("fusermount3".to_string(), vec!["-uz".to_string(), mount_dir.clone()]),
-            ("fusermount".to_string(), vec!["-uz".to_string(), mount_dir.clone()]),
-            ("umount".to_string(), vec!["-l".to_string(), mount_dir.clone()]),
+            (
+                "fusermount3".to_string(),
+                vec!["-uz".to_string(), mount_dir.clone()],
+            ),
+            (
+                "fusermount".to_string(),
+                vec!["-uz".to_string(), mount_dir.clone()],
+            ),
+            (
+                "umount".to_string(),
+                vec!["-l".to_string(), mount_dir.clone()],
+            ),
         ]
     } else {
         vec![
-            ("fusermount3".to_string(), vec!["-u".to_string(), mount_dir.clone()]),
-            ("fusermount".to_string(), vec!["-u".to_string(), mount_dir.clone()]),
+            (
+                "fusermount3".to_string(),
+                vec!["-u".to_string(), mount_dir.clone()],
+            ),
+            (
+                "fusermount".to_string(),
+                vec!["-u".to_string(), mount_dir.clone()],
+            ),
             ("umount".to_string(), vec![mount_dir.clone()]),
         ]
     }
@@ -555,7 +594,11 @@ mod tests {
             assert!(cipher_dir.join("gocryptfs.conf").is_file());
 
             let error = init(&program, &cipher_dir, "wrong passphrase").unwrap_err();
-            assert!(error.contains("Password dissimilar"), "unexpected error: {}", error);
+            assert!(
+                error.contains("Password dissimilar"),
+                "unexpected error: {}",
+                error
+            );
         }
 
         #[test]
@@ -578,7 +621,12 @@ mod tests {
             fs::write(&script, "#!/bin/sh\nread _ || true\nexit 0\n").unwrap();
             fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
 
-            let error = init(&script, &directory.path().join("vault"), ACCEPTED_PASSPHRASE).unwrap_err();
+            let error = init(
+                &script,
+                &directory.path().join("vault"),
+                ACCEPTED_PASSPHRASE,
+            )
+            .unwrap_err();
             assert!(error.contains("master key could not be read"));
         }
 
@@ -614,9 +662,13 @@ mod tests {
             let cipher_dir = directory.path().join("vault");
             fs::create_dir_all(&cipher_dir).unwrap();
 
-            let error =
-                set_passphrase(&program, &cipher_dir, "11111111-22222222-33333333", "new secret phrase")
-                    .unwrap_err();
+            let error = set_passphrase(
+                &program,
+                &cipher_dir,
+                "11111111-22222222-33333333",
+                "new secret phrase",
+            )
+            .unwrap_err();
             assert!(error.contains("master key"), "unexpected error: {}", error);
         }
 
@@ -688,8 +740,14 @@ mod tests {
 
             let moved = recover_stale_files(&mount_dir, &recovered_dir).unwrap();
             assert_eq!(moved, 1);
-            assert_eq!(fs::read_to_string(recovered_dir.join("stale.md")).unwrap(), "first");
-            assert_eq!(fs::read_to_string(recovered_dir.join("stale.md-1")).unwrap(), "second");
+            assert_eq!(
+                fs::read_to_string(recovered_dir.join("stale.md")).unwrap(),
+                "first"
+            );
+            assert_eq!(
+                fs::read_to_string(recovered_dir.join("stale.md-1")).unwrap(),
+                "second"
+            );
         }
 
         #[test]
@@ -698,7 +756,8 @@ mod tests {
             let mount_dir = directory.path().join("Protected Files");
             fs::create_dir_all(&mount_dir).unwrap();
 
-            let moved = recover_stale_files(&mount_dir, &directory.path().join("recovered")).unwrap();
+            let moved =
+                recover_stale_files(&mount_dir, &directory.path().join("recovered")).unwrap();
             assert_eq!(moved, 0);
             assert!(!directory.path().join("recovered").exists());
         }
@@ -706,9 +765,11 @@ mod tests {
         #[test]
         fn recover_stale_files_treats_missing_mountpoint_as_empty() {
             let directory = TempDir::new().unwrap();
-            let moved =
-                recover_stale_files(&directory.path().join("missing"), &directory.path().join("recovered"))
-                    .unwrap();
+            let moved = recover_stale_files(
+                &directory.path().join("missing"),
+                &directory.path().join("recovered"),
+            )
+            .unwrap();
             assert_eq!(moved, 0);
         }
 
@@ -724,7 +785,10 @@ mod tests {
 
             let restored = restore_recovered_files(&recovered, &mount).unwrap();
             assert_eq!(restored, 2);
-            assert_eq!(std::fs::read_to_string(mount.join("note.md")).unwrap(), "hello");
+            assert_eq!(
+                std::fs::read_to_string(mount.join("note.md")).unwrap(),
+                "hello"
+            );
             assert_eq!(
                 std::fs::read_to_string(mount.join("folder/inner.txt")).unwrap(),
                 "nested"
@@ -744,8 +808,14 @@ mod tests {
 
             let restored = restore_recovered_files(&recovered, &mount).unwrap();
             assert_eq!(restored, 1);
-            assert_eq!(std::fs::read_to_string(mount.join("note.md")).unwrap(), "live");
-            assert_eq!(std::fs::read_to_string(mount.join("note.md-1")).unwrap(), "stale");
+            assert_eq!(
+                std::fs::read_to_string(mount.join("note.md")).unwrap(),
+                "live"
+            );
+            assert_eq!(
+                std::fs::read_to_string(mount.join("note.md-1")).unwrap(),
+                "stale"
+            );
         }
 
         #[test]
@@ -795,8 +865,7 @@ mod tests {
         #[test]
         fn discard_recovered_files_returns_zero_when_absent() {
             let directory = TempDir::new().unwrap();
-            let discarded =
-                discard_recovered_files(&directory.path().join("missing")).unwrap();
+            let discarded = discard_recovered_files(&directory.path().join("missing")).unwrap();
             assert_eq!(discarded, 0);
         }
 

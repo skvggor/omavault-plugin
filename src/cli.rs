@@ -84,7 +84,10 @@ mod tests {
 
     #[test]
     fn parses_status_with_default_limit() {
-        assert_eq!(parse(&args(&["status"])).unwrap(), Command::Status { limit: 10 });
+        assert_eq!(
+            parse(&args(&["status"])).unwrap(),
+            Command::Status { limit: 10 }
+        );
     }
 
     #[test]
@@ -126,19 +129,30 @@ mod tests {
         assert_eq!(parse(&args(&["init"])).unwrap(), Command::Init);
         assert_eq!(
             parse(&args(&["unlock"])).unwrap(),
-            Command::Unlock { recovery_key: false }
+            Command::Unlock {
+                recovery_key: false
+            }
         );
         assert_eq!(
             parse(&args(&["unlock", "--recovery-key"])).unwrap(),
             Command::Unlock { recovery_key: true }
         );
-        assert_eq!(parse(&args(&["lock"])).unwrap(), Command::Lock { lazy: false });
-        assert_eq!(parse(&args(&["lock", "--lazy"])).unwrap(), Command::Lock { lazy: true });
+        assert_eq!(
+            parse(&args(&["lock"])).unwrap(),
+            Command::Lock { lazy: false }
+        );
+        assert_eq!(
+            parse(&args(&["lock", "--lazy"])).unwrap(),
+            Command::Lock { lazy: true }
+        );
     }
 
     #[test]
     fn parses_set_passphrase() {
-        assert_eq!(parse(&args(&["set-passphrase"])).unwrap(), Command::SetPassphrase);
+        assert_eq!(
+            parse(&args(&["set-passphrase"])).unwrap(),
+            Command::SetPassphrase
+        );
     }
 
     #[test]
