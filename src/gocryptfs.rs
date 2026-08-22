@@ -209,10 +209,9 @@ pub fn unlock(
     }
 }
 
-// gocryptfs only accepts the explicit master key as a command-line argument
-// (stdin does not work for it), so it briefly appears in /proc/<pid>/cmdline
-// of the child. The key always enters this process through stdin and is
-// scrubbed from any surfaced error.
+// The explicit master key is fed through stdin ("-masterkey=stdin") so it
+// never appears in /proc/<pid>/cmdline of the child process. It enters this
+// process through stdin as well and is scrubbed from any surfaced error.
 pub fn unlock_with_recovery_key(
     program: &Path,
     cipher_dir: &Path,
@@ -225,11 +224,11 @@ pub fn unlock_with_recovery_key(
         program,
         &[
             "-q",
-            &format!("-masterkey={}", master_key),
+            "-masterkey=stdin",
             &cipher_dir.to_string_lossy(),
             &mount_dir.to_string_lossy(),
         ],
-        "",
+        &format!("{}\n", master_key),
     )?;
     if output.status.success() {
         Ok(())
@@ -239,8 +238,9 @@ pub fn unlock_with_recovery_key(
 }
 
 // Re-wraps the master key with a new passphrase. Like the recovery unlock,
-// the master key only enters as a command-line argument because gocryptfs
-// does not accept it on stdin; it is scrubbed from any surfaced error.
+// the master key travels through stdin ("-masterkey=stdin"), followed by the
+// new passphrase and its confirmation; nothing secret touches the command
+// line and everything is scrubbed from surfaced errors.
 pub fn set_passphrase(
     program: &Path,
     cipher_dir: &Path,
@@ -249,12 +249,8 @@ pub fn set_passphrase(
 ) -> Result<(), String> {
     let output = run_with_passphrase(
         program,
-        &[
-            "-passwd",
-            &format!("-masterkey={}", master_key),
-            &cipher_dir.to_string_lossy(),
-        ],
-        &format!("{}\n{}\n", new_passphrase, new_passphrase),
+        &["-passwd", "-masterkey=stdin", &cipher_dir.to_string_lossy()],
+        &format!("{}\n{}\n{}\n", master_key, new_passphrase, new_passphrase),
     )?;
     if output.status.success() {
         Ok(())
