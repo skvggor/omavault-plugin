@@ -1,6 +1,6 @@
 [package]
 name = "omavault-helper"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2021"
 license = "MIT"
 description = "gocryptfs vault helper for the Omarchy Protected Files plugin"
