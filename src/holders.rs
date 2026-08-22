@@ -22,7 +22,11 @@ pub fn scan_holders_from(proc_root: &Path, mount_dir: &Path) -> Vec<Holder> {
     for entry in entries.flatten() {
         let name = entry.file_name();
         let pid = name.to_string_lossy().to_string();
-        if !name.to_string_lossy().chars().all(|character| character.is_ascii_digit()) {
+        if !name
+            .to_string_lossy()
+            .chars()
+            .all(|character| character.is_ascii_digit())
+        {
             continue;
         }
         if pid == own_pid {
@@ -46,7 +50,10 @@ pub fn scan_holders_from(proc_root: &Path, mount_dir: &Path) -> Vec<Holder> {
         }
         match holders.iter_mut().find(|holder| holder.process == process) {
             Some(holder) => holder.open_paths.extend(open_paths),
-            None => holders.push(Holder { process, open_paths }),
+            None => holders.push(Holder {
+                process,
+                open_paths,
+            }),
         }
     }
     for holder in &mut holders {
@@ -92,8 +99,18 @@ mod tests {
     fn groups_open_paths_by_process_name() {
         let directory = TempDir::new().unwrap();
         let mount = vault(&directory);
-        fake_holder(directory.path(), "100", "nvim\n", &[&mount.join("docs/a.md"), &mount.join("docs/b.md")]);
-        fake_holder(directory.path(), "200", "nvim\n", &[&mount.join("docs/c.md")]);
+        fake_holder(
+            directory.path(),
+            "100",
+            "nvim\n",
+            &[&mount.join("docs/a.md"), &mount.join("docs/b.md")],
+        );
+        fake_holder(
+            directory.path(),
+            "200",
+            "nvim\n",
+            &[&mount.join("docs/c.md")],
+        );
         fake_holder(directory.path(), "300", "nautilus\n", &[&mount]);
 
         let holders = scan_holders_from(directory.path(), &mount);
@@ -107,7 +124,12 @@ mod tests {
     fn ignores_paths_outside_the_mount() {
         let directory = TempDir::new().unwrap();
         let mount = vault(&directory);
-        fake_holder(directory.path(), "100", "sleep\n", &[&std::path::PathBuf::from("/tmp")]);
+        fake_holder(
+            directory.path(),
+            "100",
+            "sleep\n",
+            &[&std::path::PathBuf::from("/tmp")],
+        );
 
         assert!(scan_holders_from(directory.path(), &mount).is_empty());
     }
@@ -129,7 +151,8 @@ mod tests {
         let links: Vec<std::path::PathBuf> = (0..MAX_PATHS_PER_HOLDER + 5)
             .map(|index| mount.join(format!("file-{}.txt", index)))
             .collect();
-        let references: Vec<&std::path::Path> = links.iter().map(std::convert::AsRef::as_ref).collect();
+        let references: Vec<&std::path::Path> =
+            links.iter().map(std::convert::AsRef::as_ref).collect();
         fake_holder(directory.path(), "100", "nvim\n", &references);
 
         let holders = scan_holders_from(directory.path(), &mount);
@@ -138,7 +161,10 @@ mod tests {
 
     #[test]
     fn missing_proc_root_returns_empty() {
-        assert!(scan_holders_from(Path::new("/nonexistent-holders-proc"), Path::new("/vault")).is_empty());
+        assert!(
+            scan_holders_from(Path::new("/nonexistent-holders-proc"), Path::new("/vault"))
+                .is_empty()
+        );
     }
 
     #[test]

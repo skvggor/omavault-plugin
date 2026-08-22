@@ -1,5 +1,8 @@
 pub fn unescape_mount_field(field: &str) -> String {
-    field.replace("\\040", " ").replace("\\011", "\t").replace("\\134", "\\")
+    field
+        .replace("\\040", " ")
+        .replace("\\011", "\t")
+        .replace("\\134", "\\")
 }
 
 pub fn mount_point_of_line(line: &str) -> Option<&str> {
