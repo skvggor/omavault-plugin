@@ -27,6 +27,7 @@ case \"$1\" in
     ;;
   *)
     if [ \"${{2#-masterkey=}}\" != \"$2\" ]; then
+      read _ || true
       if [ \"${{2#-masterkey=}}\" = \"{MASTER_KEY}\" ]; then
         exit 0
       fi

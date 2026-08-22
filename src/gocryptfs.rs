@@ -575,7 +575,7 @@ mod tests {
         fn init_fails_when_output_has_no_master_key() {
             let directory = TempDir::new().unwrap();
             let script = directory.path().join("silent-gocryptfs");
-            fs::write(&script, "#!/bin/sh\nexit 0\n").unwrap();
+            fs::write(&script, "#!/bin/sh\nread _ || true\nexit 0\n").unwrap();
             fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
 
             let error = init(&script, &directory.path().join("vault"), ACCEPTED_PASSPHRASE).unwrap_err();
