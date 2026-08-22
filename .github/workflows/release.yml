@@ -7,6 +7,9 @@ on:
 
 permissions:
   contents: write
+  # Required by actions/attest-build-provenance to mint an OIDC token
+  # for signing the build provenance against Sigstore.
+  id-token: write
 
 jobs:
   release:
