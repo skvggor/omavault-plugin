@@ -1,5 +1,8 @@
 # Omavault (Omarchy plugin)
 
+<img width="474" height="495" alt="image" src="https://github.com/user-attachments/assets/7db4c2ec-2dac-4bd8-9c8c-559559c827ad" />
+
+
 A secret vault for your files in the Omarchy bar, backed by [gocryptfs](https://github.com/rfjakob/gocryptfs). Files are encrypted at rest (content **and** file names); a decrypted mount exists only while the vault is unlocked, and auto-locks after a configurable delay.
 
 - Bar widget with vault state, unlock form, recent files, and an auto-lock countdown
