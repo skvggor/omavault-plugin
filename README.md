@@ -9,10 +9,10 @@ A secret vault for your files in the Omarchy bar, backed by [gocryptfs](https://
 
 ## Dependencies
 
-- `gocryptfs` and `fuse3`: install manually (`sudo pacman -S --needed gocryptfs fuse3`) or use the "Install gocryptfs" button in the panel (runs `omarchy-pkg-add` in a terminal, sudo prompted there, same mechanism as Omarchy's first-party service installers)
+- `gocryptfs` and `fuse3`: install manually (`omarchy pkg add gocryptfs fuse3`) or use the "Install gocryptfs" button in the panel (runs `omarchy-pkg-add` in a terminal, sudo prompted there, same mechanism as Omarchy's first-party service installers)
 - `util-linux` (the `script` tool, present on any normal Arch install), required at vault creation so gocryptfs prints the master key
 
-No Rust toolchain needed for a normal install: `./install.sh` builds the helper if `cargo` is available, otherwise downloads the prebuilt binary matching this version from GitHub Releases and verifies its SHA-256 checksum. To build from source instead, install it (`sudo pacman -S --needed rust`).
+No Rust toolchain needed for a normal install: `./install.sh` builds the helper if `cargo` is available, otherwise downloads the prebuilt binary matching this version from GitHub Releases and verifies its SHA-256 checksum. To build from source instead, run `omarchy pkg add rust`.
 
 ## Install
 

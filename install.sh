@@ -16,11 +16,11 @@ fail() {
 download_helper() {
   local version asset_dir
 
-  command -v jq >/dev/null 2>&1 || fail "jq is required to read the plugin version (sudo pacman -S --needed jq)"
-  command -v curl >/dev/null 2>&1 || fail "curl is required to download the prebuilt helper (sudo pacman -S --needed curl)"
+  command -v jq >/dev/null 2>&1 || fail "jq is required to read the plugin version (omarchy pkg add jq)"
+  command -v curl >/dev/null 2>&1 || fail "curl is required to download the prebuilt helper (omarchy pkg add curl)"
 
   if [[ "$(uname -m)" != "x86_64" ]]; then
-    fail "no prebuilt helper for $(uname -m); install Rust and re-run (sudo pacman -S --needed rust)"
+    fail "no prebuilt helper for $(uname -m); install Rust and re-run (omarchy pkg add rust)"
   fi
 
   version="$(jq -r .version manifest.json)"
@@ -30,7 +30,7 @@ download_helper() {
   echo "Rust toolchain not found; downloading prebuilt omavault-helper v$version..."
 
   if ! curl --fail --location --retry 3 --silent --show-error "$RELEASES_URL/v$version/$HELPER_ASSET" -o "$asset_dir/$HELPER_ASSET"; then
-    fail "could not download $RELEASES_URL/v$version/$HELPER_ASSET — no release for v$version yet? Install Rust and re-run instead: sudo pacman -S --needed rust"
+    fail "could not download $RELEASES_URL/v$version/$HELPER_ASSET — no release for v$version yet? Install Rust and re-run instead: omarchy pkg add rust"
   fi
   if ! curl --fail --location --retry 3 --silent --show-error "$RELEASES_URL/v$version/$HELPER_ASSET.sha256" -o "$asset_dir/$HELPER_ASSET.sha256"; then
     fail "could not download $HELPER_ASSET.sha256 from the release"
@@ -43,7 +43,7 @@ download_helper() {
 }
 
 if ! command -v gocryptfs >/dev/null 2>&1; then
-  fail "gocryptfs is not installed (sudo pacman -S --needed gocryptfs fuse3)"
+  fail "gocryptfs is not installed (omarchy pkg add gocryptfs fuse3)"
 fi
 
 if command -v cargo >/dev/null 2>&1; then
