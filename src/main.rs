@@ -85,6 +85,7 @@ pub fn dispatch(
         Command::Restore => restore(layout),
         Command::Discard => discard(layout),
         Command::Help => Ok(json!({})),
+        Command::Version => Ok(json!({ "version": env!("CARGO_PKG_VERSION") })),
     }
 }
 
@@ -686,6 +687,25 @@ mod tests {
         let (_directory, layout) = vault_layout();
         let payload = dispatch(Command::Help, &layout, &[], Path::new("gocryptfs")).unwrap();
         assert_eq!(payload, json!({}));
+    }
+
+    #[test]
+    fn dispatch_version_reports_crate_version() {
+        let (_directory, layout) = vault_layout();
+        let payload = dispatch(Command::Version, &layout, &[], Path::new("gocryptfs")).unwrap();
+        assert_eq!(payload["version"], json!(env!("CARGO_PKG_VERSION")));
+    }
+
+    #[test]
+    fn run_prints_version_for_version_flag() {
+        let (directory, _) = vault_layout();
+        let program = fake_gocryptfs(directory.path());
+        for flag in ["--version", "-V"] {
+            let (code, output) = execute(&[flag], directory.path(), &program, "");
+            assert_eq!(code, 0);
+            let parsed: Value = serde_json::from_str(&output).unwrap();
+            assert_eq!(parsed["version"], json!(env!("CARGO_PKG_VERSION")));
+        }
     }
 
     #[test]

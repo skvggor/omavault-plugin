@@ -52,6 +52,9 @@ Item {
     String(Qt.resolvedUrl("omavault-helper")).replace(/^file:\/\//, "")
   readonly property string setupScriptPath:
     String(Qt.resolvedUrl("setup-helper.sh")).replace(/^file:\/\//, "")
+  readonly property string manifestPath:
+    String(Qt.resolvedUrl("manifest.json")).replace(/^file:\/\//, "")
+  property string _manifestVersion: ""
 
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
@@ -87,6 +90,26 @@ Item {
       "sh", "-c", "test -x \"$1\" && echo yes || echo no", "omavault-helper-probe", helperPath
     ]
     helperProbe.running = true
+  }
+
+  // A stale binary (plugin updated, helper not re-downloaded) must send the
+  // user back to the install button, so the reported version is compared
+  // against the manifest beside this file.
+  function manifestVersion() {
+    if (_manifestVersion !== "") return _manifestVersion
+    try {
+      var parsed = JSON.parse(manifestFile.text())
+      _manifestVersion = typeof parsed.version === "string" ? parsed.version : ""
+    } catch (error) {
+      _manifestVersion = ""
+    }
+    return _manifestVersion
+  }
+
+  function checkHelperVersion() {
+    if (versionProbe.running) return
+    versionProbe.command = [helperPath, "--version"]
+    versionProbe.running = true
   }
 
   function applyStatus(parsed) {
@@ -346,9 +369,32 @@ Item {
     stdout: StdioCollector { id: helperProbeStdout; waitForEnd: true }
     onExited: function() {
       var answer = String(helperProbeStdout.text || root._helperProbeOutput || "").trim()
-      root.helperMissing = answer !== "yes"
+      if (answer !== "yes") {
+        root.helperMissing = true
+        return
+      }
+      root.checkHelperVersion()
+    }
+  }
+
+  Process {
+    id: versionProbe
+    running: false
+    command: []
+    stdout: StdioCollector { id: versionProbeStdout; waitForEnd: true }
+    onExited: function(exitCode) {
+      var expected = root.manifestVersion()
+      var reported = exitCode === 0 ? Model.parseHelperVersion(versionProbeStdout.text) : ""
+      root.helperMissing = reported === ""
+        || (expected !== "" && reported !== expected)
       if (!root.helperMissing) root.refresh()
     }
+  }
+
+  FileView {
+    id: manifestFile
+    path: root.manifestPath
+    printErrors: false
   }
 
   PassphraseProcess {

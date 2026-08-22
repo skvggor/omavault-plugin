@@ -54,6 +54,17 @@ test('parseActionOutput defaults missing recovery key to empty string', () => {
   assert.equal(parsed.recoveryKey, '')
 })
 
+test('parseHelperVersion extracts the version string', () => {
+  assert.equal(Model.parseHelperVersion('{"ok":true,"version":"0.1.1"}'), '0.1.1')
+})
+
+test('parseHelperVersion returns empty for invalid payloads', () => {
+  assert.equal(Model.parseHelperVersion('not json'), '')
+  assert.equal(Model.parseHelperVersion('{"ok":true}'), '')
+  assert.equal(Model.parseHelperVersion('{"version":42}'), '')
+  assert.equal(Model.parseHelperVersion(undefined), '')
+})
+
 test('passphraseProblem enforces minimum length', () => {
   assert.equal(Model.passphraseProblem('short'), 'Passphrase must be at least 8 characters')
   assert.equal(Model.passphraseProblem(''), 'Passphrase must be at least 8 characters')
