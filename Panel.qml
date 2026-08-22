@@ -455,6 +455,7 @@ Panel {
           }
 
           RecoveryKeyCard {
+            id: recoveryKeyCard
             visible: vault.recoveryKey !== "" && !vault.recoveryKeySeen
             width: parent.width
           }
@@ -477,7 +478,7 @@ Panel {
               id: installHelperButton
               width: parent.width
               text: "Install helper"
-              iconText: "󰀙"
+              iconText: "󰇚"
               foreground: root.foreground
               fontFamily: root.fontFamily
               onClicked: vault.installHelper()
@@ -502,7 +503,7 @@ Panel {
               id: installDependenciesButton
               width: parent.width
               text: "Install gocryptfs"
-              iconText: "󰀙"
+              iconText: "󰇚"
               foreground: root.foreground
               fontFamily: root.fontFamily
               onClicked: vault.installDependencies()
@@ -548,7 +549,7 @@ Panel {
               Accessible.name: "Create vault"
               width: parent.width
               text: "Create vault"
-              iconText: "󰌋"
+              iconText: "󰌾"
               foreground: root.foreground
               fontFamily: root.fontFamily
               enabled: !vault.busy
@@ -580,7 +581,7 @@ Panel {
               Accessible.name: "Unlock vault"
               width: parent.width
               text: "Unlock"
-              iconText: "󰌋"
+              iconText: "󰌿"
               foreground: root.foreground
               fontFamily: root.fontFamily
               enabled: !vault.busy
@@ -627,7 +628,7 @@ Panel {
                 Accessible.role: Accessible.Button
                 Accessible.name: "Postpone auto-lock"
                 text: "Postpone lock"
-                iconText: "󰑓"
+                iconText: "󰚎"
                 foreground: root.lockUrgent ? root.urgent : Color.accent
                 accent: root.lockUrgent ? root.urgent : Color.accent
                 fontFamily: root.fontFamily
@@ -699,7 +700,7 @@ Panel {
               Accessible.name: "Set new passphrase"
               width: parent.width
               text: "Set passphrase"
-              iconText: "󰌋"
+              iconText: "󰌇"
               foreground: Color.accent
               accent: Color.accent
               fontFamily: root.fontFamily
@@ -767,7 +768,7 @@ Panel {
                 Accessible.role: Accessible.Button
                 Accessible.name: "Move recovered files into the vault"
                 text: "Move to vault"
-                iconText: "󰋊"
+                iconText: "󰁯"
                 foreground: Color.accent
                 accent: Color.accent
                 fontFamily: root.fontFamily
@@ -957,9 +958,19 @@ Panel {
       }
     }
     onAccepted: {
-      if (!vault.initialized) createVault()
-      else if (vault.unlocked && vault.unlockedWithRecoveryKey) setPassphrase()
-      else if (!vault.unlocked) unlockVault()
+      if (!vault.initialized) {
+        if (field === createPassphraseField && confirmPassphraseField.text === "") {
+          confirmPassphraseField.forceActiveFocus()
+          return
+        }
+        createVault()
+      } else if (vault.unlocked && vault.unlockedWithRecoveryKey) {
+        if (field === newPassphraseField && confirmNewPassphraseField.text === "") {
+          confirmNewPassphraseField.forceActiveFocus()
+          return
+        }
+        setPassphrase()
+      } else if (!vault.unlocked) unlockVault()
     }
     Keys.onPressed: function(event) {
       if (event.key === Qt.Key_Escape) {
@@ -1028,8 +1039,6 @@ Panel {
   }
 
   component RecoveryKeyCard: CursorSurface {
-    id: recoveryKeyCard
-
     property bool cursorOn: false
     hasCursor: cursorOn
     foreground: root.foreground
@@ -1100,7 +1109,7 @@ Panel {
           Accessible.role: Accessible.Button
           Accessible.name: "Copy recovery key to clipboard"
           text: copyRecoveryKeyButton.copied ? "Copied" : "Copy"
-          iconText: copyRecoveryKeyButton.copied ? "󰆏" : "󰅎"
+          iconText: copyRecoveryKeyButton.copied ? "󰄬" : "󰆏"
           foreground: Color.accent
           accent: Color.accent
           fontFamily: root.fontFamily
