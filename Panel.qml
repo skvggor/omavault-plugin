@@ -316,7 +316,8 @@ Panel {
     id: button
     anchors.fill: parent
     bar: root.bar
-    tooltipText: !vault.installed ? "Omavault — gocryptfs is not installed"
+    tooltipText: vault.helperMissing ? "Omavault — vault helper is not installed"
+      : !vault.installed ? "Omavault — gocryptfs is not installed"
       : !vault.initialized ? "Omavault — no vault created yet"
       : vault.lockPending ? "Omavault — finishing lock"
       : vault.unlocked ? "Omavault — unlocked"
@@ -398,7 +399,8 @@ Panel {
               id: hero
               width: parent.width
               title: "Omavault"
-              meta: !vault.installed ? "gocryptfs is not installed"
+              meta: vault.helperMissing ? "vault helper is not installed"
+                : !vault.installed ? "gocryptfs is not installed"
                 : !vault.initialized ? "No vault created yet"
                 : vault.unlocked
                   ? (vault.lockPending
@@ -458,7 +460,32 @@ Panel {
           }
 
           Column {
-            visible: !vault.installed
+            visible: vault.helperMissing
+            width: parent.width
+            spacing: Style.space(8)
+
+            Text {
+              width: parent.width
+              text: "The vault helper binary is missing — this happens when the plugin is installed with omarchy plugin add instead of ./install.sh. Download the prebuilt build matching this version?"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              wrapMode: Text.WordWrap
+            }
+
+            Button {
+              id: installHelperButton
+              width: parent.width
+              text: "Install helper"
+              iconText: "󰀙"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onClicked: vault.installHelper()
+            }
+          }
+
+          Column {
+            visible: !vault.helperMissing && !vault.installed
             width: parent.width
             spacing: Style.space(8)
 

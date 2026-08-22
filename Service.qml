@@ -11,6 +11,7 @@ Item {
 
   property bool installed: false
   property bool initialized: false
+  property bool helperMissing: false
   property bool unlocked: false
   property string mountPath: ""
   property string vaultPath: ""
@@ -48,6 +49,8 @@ Item {
   // The helper binary is installed beside this file by the install script.
   readonly property string helperPath:
     String(Qt.resolvedUrl("omavault-helper")).replace(/^file:\/\//, "")
+  readonly property string setupScriptPath:
+    String(Qt.resolvedUrl("setup-helper.sh")).replace(/^file:\/\//, "")
 
   function setting(name, fallback) {
     var value = settings ? settings[name] : undefined
@@ -77,6 +80,7 @@ Item {
   function applyStatus(parsed) {
     installed = parsed.installed === true
     initialized = parsed.initialized === true
+    helperMissing = false
     var wasUnlocked = unlocked
     unlocked = parsed.unlocked === true
     vaultPath = String(parsed.vaultPath || "")
@@ -176,6 +180,11 @@ Item {
   function installDependencies() {
     actionStatus = "Installing gocryptfs…"
     Quickshell.execDetached(["omarchy-launch-terminal", "omarchy-pkg-add", "gocryptfs", "fuse3"])
+  }
+
+  function installHelper() {
+    actionStatus = "Installing vault helper…"
+    Quickshell.execDetached(["omarchy-launch-terminal", "bash", setupScriptPath])
   }
 
   function openFile(file) {
@@ -315,6 +324,10 @@ Item {
       var stderr = String(statusStderr.text || root._statusError || "")
       if (exitCode === 0) root.applyStatus(Model.parseStatus(stdout))
       else root.lastError = root.elideStatus(stderr || stdout || "Could not read vault status")
+    }
+    onErrorOccurred: function(error) {
+      if (error !== 0) return
+      root.helperMissing = true
     }
   }
 

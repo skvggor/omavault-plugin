@@ -21,6 +21,12 @@ No Rust toolchain needed for a normal install: `./install.sh` builds the helper 
 omarchy plugin enable skvggor.omavault
 ```
 
+Or the native Omarchy flow — the panel then offers an "Install helper" button on first use, which downloads the prebuilt binary matching this version:
+
+```sh
+omarchy plugin add https://github.com/skvggor/omavault-plugin.git --enable
+```
+
 ## Usage
 
 - Click the shield icon to open the panel
