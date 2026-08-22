@@ -14,7 +14,7 @@ fi
 cargo build --release
 
 mkdir -p "$PLUGIN_DIR"
-cp plugin/manifest.json plugin/Model.js plugin/Panel.qml plugin/Service.qml plugin/VaultHero.qml plugin/VaultIcon.qml "$PLUGIN_DIR/"
+cp manifest.json Model.js Panel.qml Service.qml VaultHero.qml VaultIcon.qml "$PLUGIN_DIR/"
 cp target/release/omavault-helper "$PLUGIN_DIR/omavault-helper"
 chmod +x "$PLUGIN_DIR/omavault-helper"
 

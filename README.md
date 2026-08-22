@@ -66,7 +66,7 @@ Do **not** remove `fuse3`: the rest of the system (gvfs, qemu, xdg-desktop-porta
 cargo test          # helper unit tests
 cargo llvm-cov      # coverage
 npm test            # Model.js tests
-qmllint -I /usr/share/omarchy/shell plugin/*.qml
+qmllint -I /usr/share/omarchy/shell *.qml
 tools/eject.sh      # factory-reset: unmounts, wipes vault data, reinstalls
                     # --remove-packages also uninstalls gocryptfs
 ```
