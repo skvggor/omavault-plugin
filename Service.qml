@@ -12,6 +12,9 @@ Item {
   property bool installed: false
   property bool initialized: false
   property bool helperMissing: false
+  property bool helperStale: false
+  property string reportedHelperVersion: ""
+  property string expectedHelperVersion: ""
   property bool unlocked: false
   property string mountPath: ""
   property string vaultPath: ""
@@ -97,13 +100,13 @@ Item {
   // against the manifest beside this file.
   function manifestVersion() {
     if (_manifestVersion !== "") return _manifestVersion
-    try {
-      var parsed = JSON.parse(manifestFile.text())
-      _manifestVersion = typeof parsed.version === "string" ? parsed.version : ""
-    } catch (error) {
-      _manifestVersion = ""
+    if (!manifestProbe.running && manifestPath !== "") {
+      manifestProbe.command = [
+        "sh", "-c", "jq -r .version \"$1\"", "omavault-manifest-probe", manifestPath
+      ]
+      manifestProbe.running = true
     }
-    return _manifestVersion
+    return ""
   }
 
   function checkHelperVersion() {
@@ -112,10 +115,27 @@ Item {
     versionProbe.running = true
   }
 
+  function evaluateHelperVersion(expected) {
+    expectedHelperVersion = expected
+    var reported = reportedHelperVersion
+    if (reported === "") {
+      helperMissing = true
+      helperStale = false
+    } else if (expected !== "" && reported !== expected) {
+      helperMissing = false
+      helperStale = true
+    } else {
+      helperMissing = false
+      helperStale = false
+      refresh()
+    }
+  }
+
   function applyStatus(parsed) {
     installed = parsed.installed === true
     initialized = parsed.initialized === true
     helperMissing = false
+    helperStale = false
     var wasUnlocked = unlocked
     unlocked = parsed.unlocked === true
     vaultPath = String(parsed.vaultPath || "")
@@ -383,18 +403,22 @@ Item {
     command: []
     stdout: StdioCollector { id: versionProbeStdout; waitForEnd: true }
     onExited: function(exitCode) {
+      root.reportedHelperVersion = exitCode === 0
+        ? Model.parseHelperVersion(versionProbeStdout.text) : ""
       var expected = root.manifestVersion()
-      var reported = exitCode === 0 ? Model.parseHelperVersion(versionProbeStdout.text) : ""
-      root.helperMissing = reported === ""
-        || (expected !== "" && reported !== expected)
-      if (!root.helperMissing) root.refresh()
+      if (expected !== "" || root._manifestVersion !== "") root.evaluateHelperVersion(expected)
     }
   }
 
-  FileView {
-    id: manifestFile
-    path: root.manifestPath
-    printErrors: false
+  Process {
+    id: manifestProbe
+    running: false
+    command: []
+    stdout: StdioCollector { id: manifestStdout; waitForEnd: true }
+    onExited: function(exitCode) {
+      root._manifestVersion = exitCode === 0 ? String(manifestStdout.text || "").trim() : ""
+      if (root.reportedHelperVersion !== "") root.evaluateHelperVersion(root._manifestVersion)
+    }
   }
 
   PassphraseProcess {

@@ -486,6 +486,33 @@ Panel {
           }
 
           Column {
+            visible: vault.helperStale
+            width: parent.width
+            spacing: Style.space(8)
+
+            Text {
+              width: parent.width
+              text: vault.reportedHelperVersion === ""
+                ? "A new vault helper (v" + vault.expectedHelperVersion + ") is available. Update it to stay in sync with the plugin?"
+                : "The vault helper (v" + vault.reportedHelperVersion + ") is older than the plugin (v" + vault.expectedHelperVersion + "). Update it?"
+              color: root.dim
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              wrapMode: Text.WordWrap
+            }
+
+            Button {
+              id: updateHelperButton
+              width: parent.width
+              text: "Update helper"
+              iconText: "󰇚"
+              foreground: root.foreground
+              fontFamily: root.fontFamily
+              onClicked: vault.installHelper()
+            }
+          }
+
+          Column {
             visible: !vault.helperMissing && !vault.installed
             width: parent.width
             spacing: Style.space(8)
