@@ -1,9 +1,14 @@
 use crate::mounts::is_mounted_text;
-use std::io::Write;
+use std::io::{Read, Write};
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::{Duration, Instant};
 
 pub const GOCRYPTFS: &str = "gocryptfs";
+
+const COMMAND_DEADLINE: Duration = Duration::from_secs(90);
+const POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 pub fn find_in_path(program: &str) -> Option<PathBuf> {
     let path = std::env::var("PATH").ok()?;
@@ -120,17 +125,76 @@ fn run_with_passphrase(
     arguments: &[&str],
     passphrase_lines: &str,
 ) -> Result<std::process::Output, String> {
+    run_with_input(program, arguments, passphrase_lines, COMMAND_DEADLINE)
+}
+
+// A hung gocryptfs (wedged FUSE, stuck tty) must not hold the process — and
+// the secrets in its memory — forever, so the child is killed at a deadline.
+// Output stays far below the pipe capacity, so draining only after exit
+// cannot deadlock.
+fn run_with_input(
+    program: &Path,
+    arguments: &[&str],
+    input: &str,
+    deadline: Duration,
+) -> Result<std::process::Output, String> {
     let mut child = spawn_with_stdin(program, arguments)
         .map_err(|error| format!("failed to start {}: {}", program.display(), error))?;
     child
         .stdin
         .take()
         .ok_or_else(|| "failed to open stdin of gocryptfs".to_string())?
-        .write_all(passphrase_lines.as_bytes())
+        .write_all(input.as_bytes())
         .map_err(|error| format!("failed to write passphrase: {}", error))?;
-    child
-        .wait_with_output()
-        .map_err(|error| format!("failed to wait for gocryptfs: {}", error))
+    let started = Instant::now();
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                return Ok(std::process::Output {
+                    status,
+                    stdout: drain_pipe(&mut child.stdout),
+                    stderr: drain_pipe(&mut child.stderr),
+                });
+            }
+            Ok(None) => {
+                if started.elapsed() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!(
+                        "{} did not finish within {}s",
+                        program.display(),
+                        deadline.as_secs()
+                    ));
+                }
+                std::thread::sleep(POLL_INTERVAL);
+            }
+            Err(error) => {
+                return Err(format!(
+                    "failed to wait for {}: {}",
+                    program.display(),
+                    error
+                ))
+            }
+        }
+    }
+}
+
+fn drain_pipe<R: Read>(pipe: &mut Option<R>) -> Vec<u8> {
+    let mut buffer = Vec::new();
+    if let Some(pipe) = pipe {
+        let _ = pipe.read_to_end(&mut buffer);
+    }
+    buffer
+}
+
+fn restrict_to_owner(directory: &Path) -> Result<(), String> {
+    std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700)).map_err(|error| {
+        format!(
+            "failed to restrict {} to the owner: {}",
+            directory.display(),
+            error
+        )
+    })
 }
 
 fn describe_failure(output: &std::process::Output) -> String {
@@ -277,6 +341,9 @@ pub fn recover_stale_files(mount_dir: &Path, recovered_dir: &Path) -> Result<usi
     }
     std::fs::create_dir_all(recovered_dir)
         .map_err(|error| format!("failed to create {}: {}", recovered_dir.display(), error))?;
+    // Recovered content sits unencrypted, so the folder must stay private
+    // even when it already existed with wider permissions or an open umask.
+    restrict_to_owner(recovered_dir)?;
     let mut moved = 0;
     for entry in entries {
         let destination = unique_destination(recovered_dir, entry.file_name());
@@ -767,6 +834,74 @@ mod tests {
             )
             .unwrap();
             assert_eq!(moved, 0);
+        }
+
+        #[test]
+        fn recover_stale_files_creates_recovered_dir_owner_only() {
+            let directory = TempDir::new().unwrap();
+            let mount_dir = directory.path().join("Protected Files");
+            let recovered_dir = directory.path().join("recovered");
+            fs::create_dir_all(&mount_dir).unwrap();
+            fs::write(mount_dir.join("stale.md"), b"dropped while locked").unwrap();
+
+            recover_stale_files(&mount_dir, &recovered_dir).unwrap();
+
+            let mode = fs::metadata(&recovered_dir).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o700);
+        }
+
+        #[test]
+        fn recover_stale_files_tightens_preexisting_wide_recovered_dir() {
+            let directory = TempDir::new().unwrap();
+            let mount_dir = directory.path().join("Protected Files");
+            let recovered_dir = directory.path().join("recovered");
+            fs::create_dir_all(&mount_dir).unwrap();
+            fs::create_dir_all(&recovered_dir).unwrap();
+            fs::set_permissions(&recovered_dir, fs::Permissions::from_mode(0o755)).unwrap();
+            fs::write(mount_dir.join("stale.md"), b"dropped while locked").unwrap();
+
+            recover_stale_files(&mount_dir, &recovered_dir).unwrap();
+
+            let mode = fs::metadata(&recovered_dir).unwrap().permissions().mode();
+            assert_eq!(mode & 0o777, 0o700);
+        }
+
+        #[test]
+        fn run_with_input_kills_processes_that_exceed_the_deadline() {
+            let directory = TempDir::new().unwrap();
+            let program = directory.path().join("sleepy-gocryptfs");
+            fs::write(&program, "#!/bin/sh\nexec sleep 30\n").unwrap();
+            fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
+
+            let started = Instant::now();
+            let error = run_with_input(&program, &[], "", Duration::from_millis(150)).unwrap_err();
+            assert!(
+                error.contains("did not finish within"),
+                "unexpected error: {}",
+                error
+            );
+            assert!(
+                started.elapsed() < Duration::from_secs(10),
+                "process should be killed right after the deadline, took {:?}",
+                started.elapsed()
+            );
+        }
+
+        #[test]
+        fn run_with_input_still_collects_output_within_the_deadline() {
+            let directory = TempDir::new().unwrap();
+            let program = directory.path().join("chatty-gocryptfs");
+            fs::write(
+                &program,
+                "#!/bin/sh\nread _ || true\necho done-out\necho done-err >&2\n",
+            )
+            .unwrap();
+            fs::set_permissions(&program, fs::Permissions::from_mode(0o755)).unwrap();
+
+            let output = run_with_input(&program, &[], "", Duration::from_secs(10)).unwrap();
+            assert!(output.status.success());
+            assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "done-out");
+            assert_eq!(String::from_utf8_lossy(&output.stderr).trim(), "done-err");
         }
 
         #[test]
