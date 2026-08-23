@@ -293,10 +293,17 @@ Item {
     refresh()
   }
 
+  // Helper invocations must never wedge the panel forever: the deadline
+  // timers terminate any helper that outlives its budget and surface an
+  // error instead of leaving `busy` stuck.
+  readonly property int actionDeadlineMs: 120000
+  readonly property int statusDeadlineMs: 20000
+
   component PassphraseProcess: Process {
     id: passphraseProcess
 
     property string actionName: ""
+    property bool timedOut: false
     stdinEnabled: true
     command: []
     stdout: StdioCollector { id: passphraseStdout; waitForEnd: true }
@@ -305,8 +312,32 @@ Item {
       write(root._pendingPassphrase + "\n")
       root.clearPassphrase()
     }
+    onRunningChanged: {
+      if (running) {
+        timedOut = false
+        actionDeadline.restart()
+      } else actionDeadline.stop()
+    }
     onExited: function(exitCode) {
+      if (passphraseProcess.timedOut) {
+        root.lastError = root.elideStatus(
+          "Helper did not finish within " + Math.round(root.actionDeadlineMs / 1000)
+          + "s and was stopped"
+        )
+        root.refresh()
+        return
+      }
       root.handleActionExit(passphraseProcess.actionName, exitCode, passphraseStdout.text, passphraseStderr.text)
+    }
+
+    Timer {
+      id: actionDeadline
+      interval: root.actionDeadlineMs
+      repeat: false
+      onTriggered: {
+        passphraseProcess.timedOut = true
+        passphraseProcess.running = false
+      }
     }
   }
 
@@ -314,11 +345,36 @@ Item {
     id: actionProcess
 
     property string actionName: ""
+    property bool timedOut: false
     command: []
     stdout: StdioCollector { id: actionStdout; waitForEnd: true }
     stderr: StdioCollector { id: actionStderr; waitForEnd: true }
+    onRunningChanged: {
+      if (running) {
+        timedOut = false
+        actionDeadline.restart()
+      } else actionDeadline.stop()
+    }
     onExited: function(exitCode) {
+      if (actionProcess.timedOut) {
+        root.lastError = root.elideStatus(
+          "Helper did not finish within " + Math.round(root.actionDeadlineMs / 1000)
+          + "s and was stopped"
+        )
+        root.refresh()
+        return
+      }
       root.handleActionExit(actionProcess.actionName, exitCode, actionStdout.text, actionStderr.text)
+    }
+
+    Timer {
+      id: actionDeadline
+      interval: root.actionDeadlineMs
+      repeat: false
+      onTriggered: {
+        actionProcess.timedOut = true
+        actionProcess.running = false
+      }
     }
   }
 
@@ -372,13 +428,35 @@ Item {
     id: statusProcess
     running: false
     command: []
+    property bool timedOut: false
     stdout: StdioCollector { id: statusStdout; waitForEnd: true; onStreamFinished: root._statusOutput = text }
     stderr: StdioCollector { id: statusStderr; waitForEnd: true; onStreamFinished: root._statusError = text }
+    onRunningChanged: {
+      if (running) {
+        timedOut = false
+        statusDeadline.restart()
+      } else statusDeadline.stop()
+    }
     onExited: function(exitCode) {
+      if (timedOut) {
+        root.lastError = root.elideStatus("Vault status did not finish within "
+          + Math.round(root.statusDeadlineMs / 1000) + "s")
+        return
+      }
       var stdout = String(statusStdout.text || root._statusOutput || "")
       var stderr = String(statusStderr.text || root._statusError || "")
       if (exitCode === 0) root.applyStatus(Model.parseStatus(stdout))
       else root.lastError = root.elideStatus(stderr || stdout || "Could not read vault status")
+    }
+
+    Timer {
+      id: statusDeadline
+      interval: root.statusDeadlineMs
+      repeat: false
+      onTriggered: {
+        statusProcess.timedOut = true
+        statusProcess.running = false
+      }
     }
   }
 
