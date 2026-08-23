@@ -63,25 +63,21 @@ jobs:
         run: |
           previous_tag=$(git tag -l 'v*' --sort=-v:refname | sed -n '2p')
           gh release delete "$GITHUB_REF_NAME" --yes 2>/dev/null || true
-          cat > /tmp/notes.md <<'ENDNOTES'
-## What's Changed
-
-### Security
-- **Mandatory build attestation verification** in `setup-helper.sh` — refuses to install helper unless both SHA-256 checksum and GitHub-signed SLSA provenance verify
-- **Post-release attestation check** in CI — verifies published assets have valid attestation before users can download
-- **Secure recovery key copy** — key written directly to `wl-copy` stdin, never appears in argv or `/proc`
-- **PlainText rendering** — user-controlled strings (filenames, holder names, recovery key, status) rendered as plain text
-
-### Reliability
-- **Command deadlines** — helper invocations timeout (120s actions, 20s status) instead of wedging panel forever
-- **Hung process killing** — Rust side kills gocryptfs after 90s if it doesn't exit
-- **Owner-only recovered folder** — `recovered/` directory permissions tightened to 0o700 unconditionally
-
-### Developer Experience
-- Version consistency test (`tests/version.test.js`) validates manifest/Cargo.toml sync and release URLs
-
-**Full Changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$previous_tag...$GITHUB_REF_NAME
-ENDNOTES
+          printf '%s\n' \
+            '## What'"'"'s Changed' '' \
+            '### Security' \
+            '- **Mandatory build attestation verification** in `setup-helper.sh` — refuses to install helper unless both SHA-256 checksum and GitHub-signed SLSA provenance verify' \
+            '- **Post-release attestation check** in CI — verifies published assets have valid attestation before users can download' \
+            '- **Secure recovery key copy** — key written directly to `wl-copy` stdin, never appears in argv or `/proc`' \
+            '- **PlainText rendering** — user-controlled strings (filenames, holder names, recovery key, status) rendered as plain text' '' \
+            '### Reliability' \
+            '- **Command deadlines** — helper invocations timeout (120s actions, 20s status) instead of wedging panel forever' \
+            '- **Hung process killing** — Rust side kills gocryptfs after 90s if it doesn'"'"'t exit' \
+            '- **Owner-only recovered folder** — `recovered/` directory permissions tightened to 0o700 unconditionally' '' \
+            '### Developer Experience' \
+            '- Version consistency test (`tests/version.test.js`) validates manifest/Cargo.toml sync and release URLs' '' \
+            '**Full Changelog**: https://github.com/'"$GITHUB_REPOSITORY"'/compare/'"$previous_tag"'...'"$GITHUB_REF_NAME" \
+            > /tmp/notes.md
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
