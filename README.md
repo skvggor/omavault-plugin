@@ -15,7 +15,7 @@ A secret vault for your files in the Omarchy bar, backed by [gocryptfs](https://
 - `gocryptfs` and `fuse3`: install manually (`omarchy pkg add gocryptfs fuse3`) or use the "Install gocryptfs" button in the panel (runs `omarchy-pkg-add` in a terminal, sudo prompted there, same mechanism as Omarchy's first-party service installers)
 - `util-linux` (the `script` tool, present on any normal Arch install), required at vault creation so gocryptfs prints the master key
 
-No Rust toolchain needed for a normal install: `./install.sh` builds the helper if `cargo` is available, otherwise downloads the prebuilt binary matching this version from GitHub Releases and refuses to install it unless both the SHA-256 checksum and the GitHub-signed build attestation verify. To build from source instead, run `omarchy pkg add rust`.
+No Rust toolchain needed for a normal install: `./install.sh` builds the helper if `cargo` is available, otherwise downloads the prebuilt binary matching this version from GitHub Releases and refuses to install it unless both the SHA-256 checksum and the GitHub-signed build attestation verify (with connection/total-time/size ceilings on all downloads). To build from source instead, run `omarchy pkg add rust`.
 
 ## Install
 
@@ -59,6 +59,8 @@ Be honest about what this protects:
 - **Caveats**:
   - Files dropped into the mount point while the vault is locked are moved, **unencrypted**, to `~/.local/share/omavault/recovered/` on the next unlock (owner-only permissions). The panel then offers to move them back into the vault or delete them; until you act, they sit in plaintext
   - The passphrase and recovery key live in the panel's memory (QML strings cannot be securely zeroized) while the panel process runs
+  - Recovery key copy uses `wl-copy` via stdin — the key never appears in argv or `/proc`
+  - Helper invocations have hard deadlines (120s actions, 20s status); hung gocryptfs is killed at 90s
 
 Forgotten passphrase + lost recovery key = unrecoverable data, by design.
 
@@ -109,7 +111,7 @@ The helper binary (`omavault-helper`) is a thin Rust wrapper around gocryptfs; t
 Bump `version` in `manifest.json` and `Cargo.toml` to the same value, then tag:
 
 ```sh
-git tag v0.1.1 && git push origin v0.1.1
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
-CI refuses the tag if versions disagree, builds a static musl helper, runs the tests, and publishes binary + SHA-256 as release assets.
+CI refuses the tag if versions disagree, builds a static musl helper, runs the tests, publishes binary + SHA-256 + SLSA provenance as release assets, and verifies the attestation is served for the exact digest before considering the release valid.

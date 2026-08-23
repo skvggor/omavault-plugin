@@ -29,7 +29,7 @@ The vault folder is created in `~/.local/share/omavault/`. Everything you put in
 
 Right after creating the vault, the panel shows a **recovery key**: a long code like `6f2f38e6-93a3f5ac-…`.
 
-- **Save it somewhere safe and offline** (password manager printed in your safe, a piece of paper). Use the **Copy** button and paste it.
+- **Save it somewhere safe and offline** (password manager printed in your safe, a piece of paper). Use the **Copy** button and paste it — the key is written directly to `wl-copy` stdin, never appearing in argv or `/proc`.
 - This is the only way to open the vault if you ever forget the passphrase.
 - It is shown **only once**. Click the card after saving it.
 - If you lose both the passphrase and the recovery key, the files are gone. There is no back door.
@@ -63,7 +63,7 @@ You can only do this while the vault stays unlocked; if it locks before you set 
 
 ## Files dropped in while the vault was locked
 
-Sometimes a stale file manager window lets you drop files into the vault folder while it is locked. Those files are **not encrypted**. On the next unlock, Omavault moves them to a private `recovered` folder (readable only by your user) and the panel offers two choices:
+Sometimes a stale file manager window lets you drop files into the vault folder while it is locked. Those files are **not encrypted**. On the next unlock, Omavault moves them to a private `recovered` folder (permissions 0700, readable only by your user) and the panel offers two choices:
 
 - **Move to vault**: re-inserts them into the vault, encrypted again
 - **Delete**: removes them permanently
