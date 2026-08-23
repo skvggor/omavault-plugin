@@ -29,7 +29,7 @@ The vault folder is created in `~/.local/share/omavault/`. Everything you put in
 
 Right after creating the vault, the panel shows a **recovery key**: a long code like `6f2f38e6-93a3f5ac-…`.
 
-- **Save it somewhere safe and offline** (password manager printed in your safe, a piece of paper). Use the **Copy** button and paste it — the key is written directly to `wl-copy` stdin, never appearing in argv or `/proc`.
+- **Save it somewhere safe and offline** (password manager printed in your safe, a piece of paper). Use the **Copy** button and paste it.
 - This is the only way to open the vault if you ever forget the passphrase.
 - It is shown **only once**. Click the card after saving it.
 - If you lose both the passphrase and the recovery key, the files are gone. There is no back door.
