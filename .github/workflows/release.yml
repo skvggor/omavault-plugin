@@ -67,3 +67,36 @@ jobs:
             --generate-notes \
             target/x86_64-unknown-linux-musl/release/omavault-helper-x86_64-linux-musl \
             target/x86_64-unknown-linux-musl/release/omavault-helper-x86_64-linux-musl.sha256
+
+      # setup-helper.sh refuses to install unless both release assets exist and
+      # the attestations API serves a signed provenance bundle for the binary's
+      # digest. Verify exactly that here — with the same jq filter — so a broken
+      # release fails this workflow instead of every user's install.
+      - name: Verify published release
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          asset="omavault-helper-x86_64-linux-musl"
+          staged="target/x86_64-unknown-linux-musl/release/$asset"
+          base="https://github.com/skvggor/omavault-plugin/releases/download/$tag"
+
+          for url in "$base/$asset" "$base/$asset.sha256"; do
+            curl --fail --location --retry 5 --retry-delay 2 --silent --show-error \
+              --head -o /dev/null "$url"
+            echo "asset published: $url"
+          done
+
+          digest="sha256:$(sha256sum "$staged" | cut -d' ' -f1)"
+          attestation_file="$(mktemp)"
+          trap 'rm -f "$attestation_file"' EXIT
+          curl --fail --location --retry 5 --retry-delay 2 --silent --show-error \
+            -H "Accept: application/vnd.github+json" \
+            -H "User-Agent: omavault-release" \
+            "https://api.github.com/repos/skvggor/omavault-plugin/attestations/$digest" \
+            -o "$attestation_file"
+
+          jq -e '.attestations[0].bundle.dsseEnvelope.payload
+            | @base64d
+            | test("https://github\\.com/skvggor/omavault-plugin")
+            and test("https://slsa\\.dev/provenance")' "$attestation_file" >/dev/null
+          echo "attestation served: $digest"

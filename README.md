@@ -15,7 +15,7 @@ A secret vault for your files in the Omarchy bar, backed by [gocryptfs](https://
 - `gocryptfs` and `fuse3`: install manually (`omarchy pkg add gocryptfs fuse3`) or use the "Install gocryptfs" button in the panel (runs `omarchy-pkg-add` in a terminal, sudo prompted there, same mechanism as Omarchy's first-party service installers)
 - `util-linux` (the `script` tool, present on any normal Arch install), required at vault creation so gocryptfs prints the master key
 
-No Rust toolchain needed for a normal install: `./install.sh` builds the helper if `cargo` is available, otherwise downloads the prebuilt binary matching this version from GitHub Releases and verifies its SHA-256 checksum. To build from source instead, run `omarchy pkg add rust`.
+No Rust toolchain needed for a normal install: `./install.sh` builds the helper if `cargo` is available, otherwise downloads the prebuilt binary matching this version from GitHub Releases and refuses to install it unless both the SHA-256 checksum and the GitHub-signed build attestation verify. To build from source instead, run `omarchy pkg add rust`.
 
 ## Install
 
@@ -39,7 +39,7 @@ omarchy plugin update skvggor.omavault
 bash ~/.config/omarchy/plugins/skvggor.omavault/setup-helper.sh
 ```
 
-If you skip the second command, the panel detects the stale helper version and shows the "Install helper" button again; clicking it downloads the matching binary (v0.1.2 or newer).
+If you skip the second command, the panel detects the stale helper version and shows the "Install helper" button again; clicking it downloads the matching binary.
 
 ## Usage
 
@@ -57,14 +57,14 @@ Be honest about what this protects:
 - **Protected**: data at rest (stolen disk, backups, cloud sync of `$HOME`), and any access while the vault is locked
 - **Not protected**: anything running as your user while the vault is unlocked, or a compromised session
 - **Caveats**:
-  - Files dropped into the mount point while the vault is locked are moved, **unencrypted**, to `~/.local/share/omavault/recovered/` on the next unlock. The panel then offers to move them back into the vault or delete them; until you act, they sit in plaintext
+  - Files dropped into the mount point while the vault is locked are moved, **unencrypted**, to `~/.local/share/omavault/recovered/` on the next unlock (owner-only permissions). The panel then offers to move them back into the vault or delete them; until you act, they sit in plaintext
   - The passphrase and recovery key live in the panel's memory (QML strings cannot be securely zeroized) while the panel process runs
 
 Forgotten passphrase + lost recovery key = unrecoverable data, by design.
 
 ### Verifying the prebuilt helper
 
-The release workflow pins its actions to commit SHAs and publishes a SLSA build provenance attestation alongside the binary. `setup-helper.sh` checks the published checksum before installing; for independent verification of the downloaded file:
+The release workflow pins its actions to commit SHAs and publishes a SLSA build provenance attestation alongside the binary. `setup-helper.sh` verifies both the published checksum **and** the GitHub-signed attestation for the exact binary digest before installing — if either check fails, nothing is installed. For independent verification of the installed file:
 
 ```sh
 gh attestation verify ~/.config/omarchy/plugins/skvggor.omavault/omavault-helper \

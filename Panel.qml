@@ -448,6 +448,7 @@ Panel {
             visible: vault.actionStatus !== "" || vault.lastError !== ""
             width: parent.width
             text: vault.actionStatus !== "" ? vault.actionStatus : vault.lastError
+            textFormat: Text.PlainText
             color: vault.lastError !== "" && vault.actionStatus === "" ? root.urgent : root.dim
             font.family: root.fontFamily
             font.pixelSize: Style.font.bodySmall
@@ -1108,6 +1109,7 @@ Panel {
         id: recoveryKeyText
         width: parent.width
         text: vault.recoveryKey
+        textFormat: Text.PlainText
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.bodySmall
@@ -1123,12 +1125,12 @@ Panel {
           property bool copied: false
 
           function copyRecoveryKey() {
-            // Same mechanism as first-party panels (network, tailscale):
-            // quoted through wl-copy so no shell interpolation happens.
-            Quickshell.execDetached([
-              "bash", "-c",
-              "printf %s " + Util.shellQuote(vault.recoveryKey) + " | wl-copy"
-            ])
+            // wl-copy reads stdin until EOF, so the key never appears in
+            // argv or a shell command line visible through /proc.
+            recoveryKeyCopyProcess.stdinEnabled = true
+            recoveryKeyCopyProcess.payload = vault.recoveryKey
+            recoveryKeyCopyProcess.command = ["wl-copy"]
+            recoveryKeyCopyProcess.running = true
             copyRecoveryKeyButton.copied = true
             copiedTimer.restart()
           }
@@ -1146,6 +1148,20 @@ Panel {
             id: copiedTimer
             interval: 2000
             onTriggered: copyRecoveryKeyButton.copied = false
+          }
+
+          Process {
+            id: recoveryKeyCopyProcess
+            property string payload: ""
+            stdinEnabled: true
+            command: []
+            stdout: StdioCollector {}
+            stderr: StdioCollector {}
+            onStarted: {
+              write(recoveryKeyCopyProcess.payload)
+              recoveryKeyCopyProcess.payload = ""
+              stdinEnabled = false
+            }
           }
         }
 
@@ -1213,6 +1229,7 @@ Panel {
         Text {
           Layout.fillWidth: true
           text: fileRow.fileName
+          textFormat: Text.PlainText
           color: root.foreground
           font.family: root.fontFamily
           font.pixelSize: Style.font.body
@@ -1261,6 +1278,7 @@ Panel {
       Text {
         Layout.fillWidth: true
         text: Model.holderSummary(holderRow.holder)
+        textFormat: Text.PlainText
         color: root.foreground
         font.family: root.fontFamily
         font.pixelSize: Style.font.body
