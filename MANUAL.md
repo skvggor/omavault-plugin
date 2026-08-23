@@ -63,7 +63,7 @@ You can only do this while the vault stays unlocked; if it locks before you set 
 
 ## Files dropped in while the vault was locked
 
-Sometimes a stale file manager window lets you drop files into the vault folder while it is locked. Those files are **not encrypted**. On the next unlock, Omavault moves them to a private `recovered` folder (readable only by your user) and the panel offers two choices:
+Sometimes a stale file manager window lets you drop files into the vault folder while it is locked. Those files are **not encrypted**. On the next unlock, Omavault moves them to a private `recovered` folder (permissions 0700, readable only by your user) and the panel offers two choices:
 
 - **Move to vault**: re-inserts them into the vault, encrypted again
 - **Delete**: removes them permanently

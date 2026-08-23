@@ -97,16 +97,26 @@ jobs:
           staged="target/x86_64-unknown-linux-musl/release/$asset"
           base="https://github.com/skvggor/omavault-plugin/releases/download/$tag"
 
+          # Hard ceilings for asset checks (HEAD requests, small)
+          ASSET_CURL_OPTS=(--fail --location --retry 5 --retry-delay 2
+            --connect-timeout 10 --max-time 30 --max-filesize 1048576
+            --silent --show-error)
+
           for url in "$base/$asset" "$base/$asset.sha256"; do
-            curl --fail --location --retry 5 --retry-delay 2 --silent --show-error \
-              --head -o /dev/null "$url"
+            curl "${ASSET_CURL_OPTS[@]}" --head -o /dev/null "$url"
             echo "asset published: $url"
           done
 
           digest="sha256:$(sha256sum "$staged" | cut -d' ' -f1)"
           attestation_file="$(mktemp)"
           trap 'rm -f "$attestation_file"' EXIT
-          curl --fail --location --retry 5 --retry-delay 2 --silent --show-error \
+
+          # Hard ceilings for attestation API
+          ATTEST_CURL_OPTS=(--fail --location --retry 5 --retry-delay 2
+            --connect-timeout 5 --max-time 20 --max-filesize 1048576
+            --silent --show-error)
+
+          curl "${ATTEST_CURL_OPTS[@]}" \
             -H "Accept: application/vnd.github+json" \
             -H "User-Agent: omavault-release" \
             "https://api.github.com/repos/skvggor/omavault-plugin/attestations/$digest" \
