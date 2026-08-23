@@ -30,10 +30,15 @@ trap cleanup EXIT
 
 echo "Downloading omavault-helper v$version..."
 
-if ! curl --fail --location --retry 3 --silent --show-error "$RELEASES_URL/v$version/$HELPER_ASSET" -o "$asset_dir/$HELPER_ASSET"; then
+# Hard ceilings so a stalled/oversized response cannot hang setup or fill disk.
+CURL_OPTS=(--fail --location --retry 3 --retry-delay 2
+  --connect-timeout 10 --max-time 60 --max-filesize 10485760
+  --silent --show-error)
+
+if ! curl "${CURL_OPTS[@]}" "$RELEASES_URL/v$version/$HELPER_ASSET" -o "$asset_dir/$HELPER_ASSET"; then
   fail "could not download $HELPER_ASSET v$version — no release yet? Build from source instead: omarchy pkg add rust"
 fi
-if ! curl --fail --location --retry 3 --silent --show-error "$RELEASES_URL/v$version/$HELPER_ASSET.sha256" -o "$asset_dir/$HELPER_ASSET.sha256"; then
+if ! curl "${CURL_OPTS[@]}" "$RELEASES_URL/v$version/$HELPER_ASSET.sha256" -o "$asset_dir/$HELPER_ASSET.sha256"; then
   fail "could not download $HELPER_ASSET.sha256 from the release"
 fi
 
@@ -57,7 +62,12 @@ verify_attestation() {
 
   # The digest belongs in the path segment; query parameters are ignored.
   # The attestations endpoint intermittently answers 504, hence the retries.
-  if ! curl --fail --location --retry 4 --retry-delay 2 --silent --show-error \
+  # Hard ceilings: 5s connect, 20s total, 1MiB response.
+  ATTEST_CURL_OPTS=(--fail --location --retry 4 --retry-delay 2
+    --connect-timeout 5 --max-time 20 --max-filesize 1048576
+    --silent --show-error)
+
+  if ! curl "${ATTEST_CURL_OPTS[@]}" \
     -H "Accept: application/vnd.github+json" \
     -H "User-Agent: omavault-setup" \
     "$ATTESTATIONS_API/sha256:$binary_sha256" \
