@@ -40,51 +40,52 @@ fi
 # Verify checksum (required)
 (cd "$asset_dir" && sha256sum --check --status "$HELPER_ASSET.sha256") || fail "checksum mismatch for the downloaded omavault-helper; not installing it"
 
-# Optionally verify build attestation via GitHub API
+# Verify build attestation (required). GitHub signs provenance server-side,
+# so an attestation fetched over TLS for this exact digest proves the binary
+# was produced by this repository's Actions build — unlike the checksum file,
+# which is co-published and falls with the same channel.
 verify_attestation() {
   local attestation_file
   local binary_sha256
-  
+
   echo "Verifying build attestation..."
-  
-  # Calculate the binary's SHA-256
+
   binary_sha256=$(sha256sum "$asset_dir/$HELPER_ASSET" | cut -d' ' -f1)
-  
+
   attestation_file=$(mktemp)
   trap "rm -f '$attestation_file'" RETURN
-  
-  # Query GitHub Attestations API for this binary's digest
-  if ! curl --fail --location --retry 2 --silent --show-error \
+
+  # The digest belongs in the path segment; query parameters are ignored.
+  # The attestations endpoint intermittently answers 504, hence the retries.
+  if ! curl --fail --location --retry 4 --retry-delay 2 --silent --show-error \
     -H "Accept: application/vnd.github+json" \
     -H "User-Agent: omavault-setup" \
-    "$ATTESTATIONS_API?subject_digest=sha256:$binary_sha256&include=all" \
-    -o "$attestation_file" 2>/dev/null; then
-    echo "⚠ Could not fetch attestation from GitHub API"
+    "$ATTESTATIONS_API/sha256:$binary_sha256" \
+    -o "$attestation_file"; then
+    echo "Could not fetch the build attestation from the GitHub API." >&2
     return 1
   fi
-  
-  # Check if any attestations were found
+
   if ! jq -e '.attestations | length > 0' "$attestation_file" >/dev/null 2>&1; then
-    echo "⚠ No attestations found for this binary"
+    echo "No build attestations exist for this binary's digest." >&2
     return 1
   fi
-  
-  # Verify the attestation mentions the expected repository
-  if jq -e '.attestations[0].bundle.verificationMaterial.content | test("github\\.com/skvggor/omavault-plugin")' "$attestation_file" >/dev/null 2>&1; then
+
+  # The repository URI lives inside the base64 DSSE payload — the part the
+  # envelope actually signs — not in the surrounding metadata.
+  if jq -e '.attestations[0].bundle.dsseEnvelope.payload
+    | @base64d
+    | test("https://github\\.com/skvggor/omavault-plugin")
+    and test("https://slsa\\.dev/provenance")' "$attestation_file" >/dev/null 2>&1; then
     echo "✓ Build attestation verified (GitHub-signed provenance)"
     return 0
-  else
-    echo "⚠ Attestation found but cannot verify repository origin"
-    return 1
   fi
+  echo "Attestation found but it does not reference skvggor/omavault-plugin." >&2
+  return 1
 }
 
-# Attempt attestation verification, but don't fail if it's unavailable
 if ! verify_attestation; then
-  echo "Note: Build attestation verification unavailable or failed."
-  echo "      The binary has been verified by SHA-256 checksum."
-  echo "      For manual verification, see:"
-  echo "      https://docs.github.com/en/actions/building-and-testing-github-actions/about-attestations"
+  fail "build attestation verification failed for omavault-helper v$version — refusing to install it. Check your network (the GitHub API rate-limits unauthenticated requests) and retry, or verify manually with: gh attestation verify"
 fi
 
 mv "$asset_dir/$HELPER_ASSET" omavault-helper
