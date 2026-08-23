@@ -63,11 +63,12 @@ jobs:
         run: |
           previous_tag=$(git tag -l 'v*' --sort=-v:refname | sed -n '2p')
           gh release delete "$GITHUB_REF_NAME" --yes 2>/dev/null || true
+          notes=$(gh api repos/"$GITHUB_REPOSITORY"/compare/"$previous_tag"..."$GITHUB_REF_NAME" --jq '.commits | map("* \(.commit.message | split("\n")[0]) by @\(.author.login) in \(.html_url)") | join("\n")')
+          body="## What's Changed\n$notes\n\n**Full Changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$previous_tag...$GITHUB_REF_NAME"
           gh release create "$GITHUB_REF_NAME" \
             --repo "$GITHUB_REPOSITORY" \
             --title "$GITHUB_REF_NAME" \
-            --generate-notes \
-            --notes-start-tag "$previous_tag" \
+            --notes "$body" \
             target/x86_64-unknown-linux-musl/release/omavault-helper-x86_64-linux-musl \
             target/x86_64-unknown-linux-musl/release/omavault-helper-x86_64-linux-musl.sha256
 
