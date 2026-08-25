@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "skvggor.omavault",
   "name": "Omavault",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "author": "skvggor",
   "license": "MIT",
   "description": "A secret vault for your files: unlock it from the bar, use it, and it locks itself again.",
