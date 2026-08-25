@@ -304,6 +304,7 @@ Item {
 
     property string actionName: ""
     property bool timedOut: false
+    property Timer deadlineTimer: null
     stdinEnabled: true
     command: []
     stdout: StdioCollector { id: passphraseStdout; waitForEnd: true }
@@ -315,8 +316,8 @@ Item {
     onRunningChanged: {
       if (running) {
         timedOut = false
-        actionDeadline.restart()
-      } else actionDeadline.stop()
+        if (deadlineTimer) deadlineTimer.restart()
+      } else if (deadlineTimer) deadlineTimer.stop()
     }
     onExited: function(exitCode) {
       if (passphraseProcess.timedOut) {
@@ -329,16 +330,6 @@ Item {
       }
       root.handleActionExit(passphraseProcess.actionName, exitCode, passphraseStdout.text, passphraseStderr.text)
     }
-
-    Timer {
-      id: actionDeadline
-      interval: root.actionDeadlineMs
-      repeat: false
-      onTriggered: {
-        passphraseProcess.timedOut = true
-        passphraseProcess.running = false
-      }
-    }
   }
 
   component ActionProcess: Process {
@@ -346,14 +337,15 @@ Item {
 
     property string actionName: ""
     property bool timedOut: false
+    property Timer deadlineTimer: null
     command: []
     stdout: StdioCollector { id: actionStdout; waitForEnd: true }
     stderr: StdioCollector { id: actionStderr; waitForEnd: true }
     onRunningChanged: {
       if (running) {
         timedOut = false
-        actionDeadline.restart()
-      } else actionDeadline.stop()
+        if (deadlineTimer) deadlineTimer.restart()
+      } else if (deadlineTimer) deadlineTimer.stop()
     }
     onExited: function(exitCode) {
       if (actionProcess.timedOut) {
@@ -365,16 +357,6 @@ Item {
         return
       }
       root.handleActionExit(actionProcess.actionName, exitCode, actionStdout.text, actionStderr.text)
-    }
-
-    Timer {
-      id: actionDeadline
-      interval: root.actionDeadlineMs
-      repeat: false
-      onTriggered: {
-        actionProcess.timedOut = true
-        actionProcess.running = false
-      }
     }
   }
 
@@ -424,6 +406,76 @@ Item {
 
   onActionStatusChanged: if (actionStatus !== "") actionStatusTimer.restart()
 
+  Timer {
+    id: statusDeadline
+    interval: root.statusDeadlineMs
+    repeat: false
+    onTriggered: {
+      statusProcess.timedOut = true
+      statusProcess.running = false
+    }
+  }
+
+  Timer {
+    id: initProcessDeadline
+    interval: root.actionDeadlineMs
+    repeat: false
+    onTriggered: {
+      initProcess.timedOut = true
+      initProcess.running = false
+    }
+  }
+
+  Timer {
+    id: unlockProcessDeadline
+    interval: root.actionDeadlineMs
+    repeat: false
+    onTriggered: {
+      unlockProcess.timedOut = true
+      unlockProcess.running = false
+    }
+  }
+
+  Timer {
+    id: setPassphraseProcessDeadline
+    interval: root.actionDeadlineMs
+    repeat: false
+    onTriggered: {
+      setPassphraseProcess.timedOut = true
+      setPassphraseProcess.running = false
+    }
+  }
+
+  Timer {
+    id: lockProcessDeadline
+    interval: root.actionDeadlineMs
+    repeat: false
+    onTriggered: {
+      lockProcess.timedOut = true
+      lockProcess.running = false
+    }
+  }
+
+  Timer {
+    id: restoreProcessDeadline
+    interval: root.actionDeadlineMs
+    repeat: false
+    onTriggered: {
+      restoreProcess.timedOut = true
+      restoreProcess.running = false
+    }
+  }
+
+  Timer {
+    id: discardProcessDeadline
+    interval: root.actionDeadlineMs
+    repeat: false
+    onTriggered: {
+      discardProcess.timedOut = true
+      discardProcess.running = false
+    }
+  }
+
   Process {
     id: statusProcess
     running: false
@@ -447,16 +499,6 @@ Item {
       var stderr = String(statusStderr.text || root._statusError || "")
       if (exitCode === 0) root.applyStatus(Model.parseStatus(stdout))
       else root.lastError = root.elideStatus(stderr || stdout || "Could not read vault status")
-    }
-
-    Timer {
-      id: statusDeadline
-      interval: root.statusDeadlineMs
-      repeat: false
-      onTriggered: {
-        statusProcess.timedOut = true
-        statusProcess.running = false
-      }
     }
   }
 
@@ -502,30 +544,36 @@ Item {
   PassphraseProcess {
     id: initProcess
     actionName: "init"
+    deadlineTimer: initProcessDeadline
   }
 
   PassphraseProcess {
     id: unlockProcess
     actionName: "unlock"
+    deadlineTimer: unlockProcessDeadline
   }
 
   PassphraseProcess {
     id: setPassphraseProcess
     actionName: "set-passphrase"
+    deadlineTimer: setPassphraseProcessDeadline
   }
 
   ActionProcess {
     id: lockProcess
     actionName: "lock"
+    deadlineTimer: lockProcessDeadline
   }
 
   ActionProcess {
     id: restoreProcess
     actionName: "restore"
+    deadlineTimer: restoreProcessDeadline
   }
 
   ActionProcess {
     id: discardProcess
     actionName: "discard"
+    deadlineTimer: discardProcessDeadline
   }
 }
